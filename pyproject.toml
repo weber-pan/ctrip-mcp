@@ -1,0 +1,37 @@
+[project]
+name = "ctrip-mcp"
+version = "0.1.0"
+description = "Ctrip MCP server — Playwright + chromium real-capture m端 h5 SPA graphql,拿到真实价格/班期/酒店/点评数据。不是 wendao LLM 串台版。"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Hermes Agent", email = "hermes-agent@local"},
+]
+license = {text = "MIT"}
+
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.0.0",
+    "playwright>=1.40.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+ctrip-mcp = "ctrip_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ctrip_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
