@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "${CTRIP_PYTHON:-/opt/hermes/.venv/bin/python}",
+      "args": ["-m", "ctrip_mcp.server"],
+      "cwd": "${CTRIP_INSTALL_DIR:-/opt/data/ctrip-mcp}",
+      "env": {
+        "CTRIP_DATA_DIR": "${CTRIP_DATA_DIR:-/opt/data/ctrip-data}"
+      }
+    }
+  }
+}

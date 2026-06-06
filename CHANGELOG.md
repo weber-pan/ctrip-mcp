@@ -1,5 +1,38 @@
 # 更新日志 (CHANGELOG)
 
+## [0.2.0] - 2026-06-06
+
+### 新增 — 0 跑体验
+- **bootstrap.sh** (3.8KB) — 任意环境一条命令安装
+  - `curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash`
+  - 自动: 探测 Python ≥ 3.10 / git clone / venv / pip install / chromium / e2e 测试
+- **install-as-skill.sh** (1.5KB) — 注册 3 个 skill 软链到 `~/.hermes/skills/`
+- **AGENTS.md** (4KB) — Claude Code / Hermes / Codex / Aider 自动读
+  - 5 工具表 + 7 个 pitfall + city 字典
+- **.mcp.json.example** — Claude Code 一键接入
+- **docs/HERMES_CONFIG.yaml.example** — Hermes config 片段
+- README 重写 (11.4KB, 12 节)
+  - 0 跑引导 / 3 层架构图 / city 字典 / 8 坑日志 / 5 客户端接入
+
+### 升级 — 数据维度
+- 印尼 p69762187 验证 11 段补漏:
+  - 价格日历 207 天 (CSV 落盘)
+  - 行程 10 段 SegmentInfo (不靠 DOM)
+  - 9 家酒店 + 8 POI (带 hotelId/poiId, 可调 hotelMCP)
+  - 68 城价 / 销量 328 / 流量 8636
+  - 15+ 张图片 (4 类源)
+  - 8 个竞品比价 / 11 段报告模板
+
+### 升级 — Skill 系统
+- `skill/ctrip-spa-capture/` (3 SKILL.md + 3 脚本 + 4 reference, 84KB)
+- `skill/ctrip-product-report/` (1 SKILL.md + 1 脚本 + 8 reference, 92KB)
+- `skill/ctrip-product-research/` (umbrella, 8KB)
+
+### 测试
+- 沙巴 p64158367: 4 线路 / 7/4 ¥6857-¥8365
+- 印尼 p69762187: 1 线路 / 9 酒店 / 8 POI / 207 天价 / 11 段
+- 印尼 p42461732: 1 线路 / 5 酒店 / 9 POI / 352 天价
+
 ## [0.1.0] - 2026-06-06
 
 ### 新增
@@ -14,11 +47,6 @@
 - Playwright + chromium 抓取核心 (`capture.py`)
 - 完整真实数据: 4 条线路 / 8 家酒店 / 7 月全月价格 / 点评 / 合同方
 - 5 个 pitfalls 文档化
-- 2 个 reference 文档:
-  - `ctrip-spa-graphql-hook.md` — graphql hook 技术细节
-  - `hotels_mcp_ids.md` — 8 家酒店 MCP ID 对照
-- 1 个 docs 文档:
-  - `MCPHUB_INTEGRATION.md` — mcphub 接入指南
 
 ### 已知限制
 - Playwright 抓取 ~25s/产品 (浏览器启动 + SPA lazy load)

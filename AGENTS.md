@@ -1,0 +1,92 @@
+# AGENTS.md
+
+This file tells AI coding agents (Claude Code, Codex, Aider, Hermes, etc.) how to use this project.
+
+## What this is
+
+`ctrip-mcp` is a Model Context Protocol (MCP) server that lets any MCP-compatible AI agent
+**directly fetch real travel product data from Ctrip's mobile H5 SPA** — not via LLM
+summarization (which can hallucinate), but by running Playwright + Chromium and intercepting
+the actual `graphql` API responses that Ctrip's own mobile app uses.
+
+## Quick start
+
+If you are an AI agent and your user gives you a Ctrip product URL like
+`https://vacations.ctrip.com/travel/detail/p64158367/?city=2&rv=1`, the workflow is:
+
+1. **Read this AGENTS.md to the end.**
+2. **Verify installation** by running `python scripts/test_server.py`.
+3. **If not installed**: run `bash bootstrap.sh` (handles venv + pip + chromium).
+4. **Use the 5 tools** (see "Tools" section below).
+5. **Read `skill/ctrip-product-research/SKILL.md`** for the higher-level workflow.
+
+## Tools
+
+| Tool | What it does |
+|------|--------------|
+| `ctrip_spa_capture` | Fetch the product's real graphql JSON via Playwright (≈25s). |
+| `ctrip_get_product` | Parse the captured JSON into structured product data. |
+| `ctrip_compare_subproducts` | Re-run capture for each sub-productId (for 4-line products). |
+| `ctrip_get_hotel_price` | Fetch real hotel prices for one of the in-route hotels. |
+| `ctrip_health` | Health check — chromium, output dir, last capture timestamp. |
+
+## Pitfalls (read these)
+
+- **Ctrip URLs are server-rendered shells + CSR JSON.** Plain `curl` returns 403. You must
+  use the Playwright capture path. Don't try to scrape the DOM with regex.
+- **Chromium is required.** If `~/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome`
+  doesn't exist, `bootstrap.sh` downloads it (~150MB). Don't `npx playwright install`
+  inside a Docker container — it will fail.
+- **`city=` is a Ctrip-internal departure-city ID, not a region code.** 1=Beijing, 2=Shanghai,
+  3=Tianjin, 17=Hangzhou, 28=Chengdu, 30=Shenzhen, 32=Guangzhou, 1244=Chongqing. The full
+  68-city dictionary appears in the captured `DepartureCityPriceList[]`.
+- **Product with 1 line vs. 4 lines** — Some products have `groupCard.cards[]` with
+  multiple sub-productIds (4 lines: standard / upgrade / hot / same-hotel). Others have
+  just 1. Look at `len(cards)` first.
+- **`Title` is missing in `ProductInfo_2nd_V3_h5`** — it's in
+  `VPC_SelectDateProductInfo_h5.BasicInfo.Title`. Always use VPC for the product name.
+- **Don't trust `wendao` LLM for 远期 (7/4) weather** — knowledge cutoff is 2026-01.
+  Use `amap-mcp-maps_weather` for ≤4 days, and warn the user that anything beyond is
+  LLM-prediction.
+
+## Tests
+
+```bash
+# Tool + health check
+python scripts/test_server.py
+
+# End-to-end: capture 沙巴 64158367 + parse + 7/4 prices (~30s)
+python scripts/test_e2e.py
+```
+
+## Output structure
+
+Captures land in `${CTRIP_DATA_DIR:-/opt/data/ctrip-data}/`:
+
+```
+xhr_ProductInfo_2nd_V3_h5.json       # main product (34 fields)
+xhr_VPC_SelectDateProductInfo_h5.json # VPC (16 fields: 行程 10 段, 销量, 68 城价)
+xhr_getCommentSummary.json            # 真实用户点评
+xhr_getByRelationId.json              # 关联产品
+xhr_getPromotionTag.json              # 促销标签
+xhr_batchPriceCalendar.json           # 价格日历明细
+xhr_ProductInfo_VisaInfo_h5.json      # 签证
+dom_text.txt                          # 整页 DOM 文本 (含 D1-D7 行程兜底)
+```
+
+After capture, run `python /opt/data/skills/devops/ctrip-spa-capture/scripts/extract_more.py <pid>`
+to get a CSV of the 207-day price calendar + 4 image sources + 11段补漏.
+
+## Skill integration
+
+This project ships with three Agent skills under `skill/`:
+
+- `skill/ctrip-product-research/` — umbrella / router
+- `skill/ctrip-spa-capture/` — technical layer (Playwright + graphql)
+- `skill/ctrip-product-report/` — 11-段 report template
+
+Hermes agents can `skill_view(name='ctrip-spa-capture')` to load them.
+
+## License
+
+MIT

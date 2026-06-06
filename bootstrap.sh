@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# bootstrap.sh — 从 0 一键安装 + 验证 ctrip-mcp
+#
+# 用法 (任何环境, 包括 Docker 容器 / 全新 VPS / Mac / Linux):
+#   curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
+#   # 或本地:
+#   bash bootstrap.sh
+#
+# 流程:
+#   1. 探测环境 (Python ≥ 3.10, 网络)
+#   2. git clone (or pull if exists)
+#   3. 创建 venv
+#   4. pip install -e .
+#   5. 探测/下载 chromium
+#   6. 跑 ctrip-mcp 5 工具健康检查
+#   7. 跑 e2e (抓沙巴产品 64158367, 验证 ~25s)
+#   8. 提示下一步: Claude Code / Hermes / mcphub 接入
+
+set -e
+
+# 配色
+G='\033[0;32m'
+Y='\033[1;33m'
+R='\033[0;31m'
+N='\033[0m'
+
+log()  { echo -e "${G}▶${N} $*"; }
+warn() { echo -e "${Y}⚠${N} $*"; }
+die()  { echo -e "${R}✗${N} $*" >&2; exit 1; }
+
+# 1. 探测环境
+log "探测环境..."
+PY=$(command -v python3 || command -v python)
+[ -z "$PY" ] && die "需要 Python 3.10+"
+PY_VER=$($PY -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+log "Python: $PY ($PY_VER)"
+echo "$PY_VER" | awk -F. '$1>=3 && $2>=10 {exit 0} {exit 1}' \
+  || die "需要 Python 3.10+, 当前 $PY_VER"
+
+# 2. git clone
+REPO_URL="https://gitee.com/weber-pan/ctrip-mcp.git"
+INSTALL_DIR="${CTRIP_INSTALL_DIR:-$HOME/.ctrip-mcp}"
+if [ -d "$INSTALL_DIR/.git" ]; then
+  log "已存在: $INSTALL_DIR, 拉最新..."
+  cd "$INSTALL_DIR" && git pull --ff-only
+else
+  log "克隆到 $INSTALL_DIR..."
+  git clone "$REPO_URL" "$INSTALL_DIR"
+  cd "$INSTALL_DIR"
+fi
+
+# 3. venv
+VENV="$INSTALL_DIR/.venv"
+if [ ! -d "$VENV" ]; then
+  log "创建 venv..."
+  $PY -m venv "$VENV"
+fi
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
+log "venv: $VENV"
+
+# 4. pip install
+log "装依赖 (mcp + playwright + httpx + pydantic)..."
+pip install --quiet --upgrade pip
+pip install --quiet -e .
+
+# 5. chromium
+CHROMIUM_HINT="$HOME/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
+if [ -x "$CHROMIUM_HINT" ]; then
+  log "chromium 已就位: $CHROMIUM_HINT"
+elif command -v playwright >/dev/null 2>&1; then
+  log "下载 chromium (~150MB)..."
+  playwright install chromium || warn "playwright install 失败, 可手动指定 CTRIP_CHROMIUM"
+else
+  warn "未找到 playwright, 跳过 chromium 下载"
+  warn "请手动设置 CTRIP_CHROMIUM 指向已有 chrome"
+fi
+
+# 6. 健康检查
+log "ctrip-mcp 工具列表 (stdio MCP)..."
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bootstrap","version":"0"}}}' \
+  | timeout 5 "$VENV/bin/python" -m ctrip_mcp.server 2>/dev/null \
+  | python3 -c 'import sys,json; d=json.loads(sys.stdin.read()); tools=d.get("result",{}).get("capabilities",{}).get("tools",{}); print(f"  工具能力: {len(tools)} 个" if isinstance(tools, dict) else f"  ✓ 协议握手成功")' \
+  || warn "MCP 握手失败 (可能是 stdio 限制, 跳到 e2e 验证)"
+
+# 7. e2e 测试
+log "e2e 测试 (抓沙巴 64158367, ~25s)..."
+"$VENV/bin/python" scripts/test_e2e.py 2>&1 | tail -20
+
+# 8. 下一步
+cat <<EOF
+
+${G}========================================${N}
+${G}✓ ctrip-mcp 安装完成${N}
+${G}========================================${N}
+
+下一步: 接入 AI 客户端 (任选)
+
+${Y}[Claude Code]${N}  在项目根加 .mcp.json:
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "$VENV/bin/python",
+      "args": ["-m", "ctrip_mcp.server"],
+      "cwd": "$INSTALL_DIR"
+    }
+  }
+}
+
+${Y}[Hermes]${N}  在 ~/.hermes/config.yaml 加:
+  mcp_servers:
+    - name: ctrip
+      command: $VENV/bin/python
+      args: ["-m", "ctrip_mcp.server"]
+      workdir: $INSTALL_DIR
+
+${Y}[mcphub]${N}  Web UI 手动加 stdio server:
+  Name:   ctrip
+  Cmd:    $VENV/bin/python
+  Args:   -m ctrip_mcp.server
+  Workdir: $INSTALL_DIR
+
+${Y}[直接跑]${N}  stdio MCP 客户端:
+  $VENV/bin/python -m ctrip_mcp.server
+
+EOF

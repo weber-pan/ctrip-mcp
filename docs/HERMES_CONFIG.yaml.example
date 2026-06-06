@@ -1,0 +1,29 @@
+# Hermes Agent config.yaml 片段 — 复制到 ~/.hermes/config.yaml
+# 让 Hermes 自动发现 ctrip MCP server
+
+mcp_servers:
+  - name: ctrip
+    type: stdio
+    command: /opt/hermes/.venv/bin/python
+    args:
+      - -m
+      - ctrip_mcp.server
+    workdir: /opt/data/ctrip-mcp
+    env:
+      CTRIP_DATA_DIR: /opt/data/ctrip-data
+    description: "携程 m 端 h5 SPA 真抓 — 5 工具: 抓产品/解析/4 线路对比/酒店价/健康检查"
+    tags:
+      - travel
+      - ctrip
+      - mcp
+      - real-data
+
+# 可选: 注册 ctrip-product-research umbrella skill
+skills:
+  - source: /opt/data/skills/devops/ctrip-product-research
+    auto_load: true
+    triggers:
+      - "携程"
+      - "ctrip"
+      - "p\d{8}"
+      - "vacations.ctrip.com"
