@@ -85,3 +85,24 @@
 - 本仓库 (ctrip-mcp): 真抓 (无 token, 25s/产品)
 - 姊妹仓库 (xiecheng-mcp): wendao LLM 兜底 (需 token, 10-30s/query)
 - 建议两个都装, 优先用本仓库, wendao 兜底
+
+## [0.4.0] - 2026-06-07
+
+### feat — 集成 rednote-mcp (小红书真实数据)
+
+#### 4 个 xhs_* tool 暴露
+- `xhs_search_notes` — 关键词搜小红书笔记, 站旅客角度拿真实数据
+- `xhs_explore` — 首页推荐 feed
+- `xhs_get_note_content` — 拿笔记正文
+- `xhs_health` — 模块健康 (cookie/浏览器/登录态)
+
+#### 集成实现
+- 复用 `rednote-mcp` 浏览器实例 + cookie (避免双实例冲突)
+- 1 个 cookie 文件 (16 个 cookie) 服务于两个 MCP
+- 已端到端验证: 京都7日游 / 日本7日游 搜到真笔记
+- ctrip_health 自动展示 xhs 子模块状态
+
+#### 触发场景
+- "站旅客角度"/"真实攻略"/"小红书数据" → xhs_search_notes
+- "用户游记"/"价格实测"/"避坑" → xhs_get_note_content
+- 数据源: https://github.com/JonaFly/RednoteMCP
