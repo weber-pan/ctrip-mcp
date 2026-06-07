@@ -177,11 +177,58 @@ of them in-session with `skill_view(name='<name>')`.
 
 ## Client wiring
 
+Run `bash mcp_register.sh` once after `bootstrap.sh` — it auto-detects
+which MCP clients you have installed (Claude Code, Cursor, Windsurf,
+Hermes/mcphub) and writes the `ctrip` entry to each, idempotently. No
+manual JSON editing required.
+
+```bash
+# Default: auto-register to all detected clients
+bash mcp_register.sh
+
+# Preview what would be written, no changes
+bash mcp_register.sh --dry-run
+
+# Remove the ctrip entry from all clients
+bash mcp_register.sh --unregister
+```
+
+The script auto-detects the `ctrip-mcp` executable in this order:
+`$CTRIP_MCP_BIN` env → `which ctrip-mcp` → `$INSTALL_DIR/.venv/bin/`
+→ `~/.ctrip-mcp/.venv/bin/` → `/usr/local/bin/`. Pass
+`CTRIP_MCP_BIN=/abs/path` to override.
+
+**What gets written** (example for Claude Code at `~/.claude/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "/opt/data/home/.ctrip-mcp/.venv/bin/ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data"
+      }
+    }
+  }
+}
+```
+
+**After registration, restart your MCP client** (Claude Code / Cursor
+/ Windsurf) to pick up the new server. Hermes/mcphub does not need a
+restart — it picks up the new entry on the next config reload.
+
+### Manual wiring (if you don't want to run `mcp_register.sh`)
+
 | Client | Config file | Entry |
 |---|---|---|
-| **Claude Code** | `~/.claude/mcp.json` | `{ "mcpServers": { "ctrip": { "command": "ctrip-mcp" } } }` |
-| **Hermes / mcphub** | `mcp_servers.yaml` | `- name: ctrip`<br>`  command: ctrip-mcp` |
+| **Claude Code** | `~/.claude/mcp.json` | `{ "mcpServers": { "ctrip": { "command": "<abs-path-to-ctrip-mcp>" } } }` |
+| **Hermes / mcphub** | `mcp_servers.yaml` | `- name: ctrip`<br>`  command: <abs-path-to-ctrip-mcp>` |
 | **Cursor / Windsurf / Aider** | stdio transport | works out of the box |
+
+> **Pitfall:** the `ctrip-mcp` command only exists inside the
+> `~/.ctrip-mcp/.venv/bin/` directory after `bootstrap.sh` — it is
+> **not** on `$PATH` by default. Use the absolute path in your config,
+> or symlink it: `ln -sf ~/.ctrip-mcp/.venv/bin/ctrip-mcp /usr/local/bin/ctrip-mcp`.
 
 ## Command reference
 
@@ -200,6 +247,7 @@ of them in-session with `skill_view(name='<name>')`.
 ctrip-mcp/
 ├── AGENTS.md                          # auto-read by Claude Code / Hermes / Codex / Aider
 ├── bootstrap.sh                       # one-liner installer
+├── mcp_register.sh                    # auto-register ctrip to Claude/Cursor/Windsurf/mcphub
 ├── install-as-skill.sh                # symlinks skills into ~/.hermes/skills/
 ├── pyproject.toml
 ├── src/

@@ -155,11 +155,55 @@ https://m.ctrip.com/webapp/vacations/tour/detail?productId=64158367&departCityId
 
 ## 客户端接入
 
+跑完 `bootstrap.sh` 之后,**执行一次** `bash mcp_register.sh` —— 它会自动探
+Claude Code / Cursor / Windsurf / Hermes-mcphub 哪个客户端装了,然后把
+`ctrip` entry 写进去,**幂等**,不用手改 JSON。
+
+```bash
+# 默认: 注册到所有检测到的客户端
+bash mcp_register.sh
+
+# 只看会写什么, 不真改
+bash mcp_register.sh --dry-run
+
+# 从所有客户端删除 ctrip entry
+bash mcp_register.sh --unregister
+```
+
+**自动找可执行** 顺序:`$CTRIP_MCP_BIN` env → `which ctrip-mcp` →
+`$INSTALL_DIR/.venv/bin/` → `~/.ctrip-mcp/.venv/bin/` →
+`/usr/local/bin/`。`CTRIP_MCP_BIN=/abs/path bash mcp_register.sh`
+可手动覆盖。
+
+**写入长这样** (Claude Code `~/.claude/mcp.json` 示例):
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "/opt/data/home/.ctrip-mcp/.venv/bin/ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data"
+      }
+    }
+  }
+}
+```
+
+**注册完记得重启 MCP 客户端** (Claude Code / Cursor / Windsurf)。
+Hermes/mcphub **不用重启**,改完 env 配置下次 reload 自动生效。
+
+### 手动接入(不想跑 `mcp_register.sh`)
+
 | 客户端 | 配置文件 | 入口 |
 |---|---|---|
-| **Claude Code** | `~/.claude/mcp.json` | `{ "mcpServers": { "ctrip": { "command": "ctrip-mcp" } } }` |
-| **Hermes / mcphub** | `mcp_servers.yaml` | `- name: ctrip`<br>`  command: ctrip-mcp` |
+| **Claude Code** | `~/.claude/mcp.json` | `{ "mcpServers": { "ctrip": { "command": "<abs-path-to-ctrip-mcp>" } } }` |
+| **Hermes / mcphub** | `mcp_servers.yaml` | `- name: ctrip`<br>`  command: <abs-path-to-ctrip-mcp>` |
 | **Cursor / Windsurf / Aider** | stdio 传输 | 开箱即用 |
+
+> **坑**:`ctrip-mcp` 命令只在 `~/.ctrip-mcp/.venv/bin/` 下面,**不在
+> 系统 PATH** —— 配置里必须写绝对路径,或者软链一下:
+> `ln -sf ~/.ctrip-mcp/.venv/bin/ctrip-mcp /usr/local/bin/ctrip-mcp`。
 
 ## 配置参数
 
@@ -178,6 +222,7 @@ https://m.ctrip.com/webapp/vacations/tour/detail?productId=64158367&departCityId
 ctrip-mcp/
 ├── AGENTS.md                          # Claude Code / Hermes / Codex / Aider 自动读
 ├── bootstrap.sh                       # 一行安装
+├── mcp_register.sh                    # 自动注册 ctrip 到 Claude/Cursor/Windsurf/mcphub
 ├── install-as-skill.sh                # 把 skill 软链进 ~/.hermes/skills/
 ├── pyproject.toml
 ├── src/

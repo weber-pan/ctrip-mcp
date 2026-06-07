@@ -131,47 +131,42 @@ else
   warn "     CTRIP_DATA_DIR=/opt/data/ctrip-data $VENV/bin/python -c 'import asyncio, sys; sys.path.insert(0, \"$INSTALL_DIR/src\"); from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
 fi
 
-# 9. 下一步
+# 9. 自动注册 MCP 客户端
+log "▶ 自动注册到 MCP 客户端 (Claude Code / Cursor / Windsurf / mcphub)..."
+REGISTER_SH="$INSTALL_DIR/mcp_register.sh"
+if [ -x "$REGISTER_SH" ]; then
+  CTRIP_MCP_BIN="$VENV/bin/ctrip-mcp" bash "$REGISTER_SH" 2>&1 | sed 's/^/  /' || warn "  mcp_register.sh 返回非零, 看上面"
+else
+  warn "  没找到 $REGISTER_SH, 跳过自动注册"
+fi
+echo ""
+
+# 10. 下一步
 cat <<EOF
 
 ${G}========================================${N}
 ${G}✓ ctrip-mcp 安装完成${N}
 ${G}========================================${N}
 
-$(if "$VENV/bin/python" -c "from rednote_mcp import xhs_core" 2>/dev/null; then
-echo "${Y}[小红书集成]${N}
-  xhs_* 4 工具已就绪! 需配 cookie 才可见:
+${Y}[自动注册结果]${N}  见上面 mcp_register.sh 输出
+  - Claude Code: 重启 claude
+  - Cursor:      重启 cursor
+  - Windsurf:    重启 windsurf
+  - mcphub:      不用重启, 下次配置 reload 自动生效
+  - 没自动注册成功: 跑 bash $INSTALL_DIR/mcp_register.sh
 
-  mcphub: 改 REDNOTE_COOKIES env → 重启服务
-  或在系统设环境变量再启动 MCP server:
-    export REDNOTE_COOKIES='a1=xxx; web_session=yyy; ...'
+${Y}[手动接入]${N}  没自动覆盖到的客户端:
+  mcphub / Claude Code / Cursor / Windsurf: 看 README.md "Client wiring" 节
+  stdio 直接跑:  $VENV/bin/ctrip-mcp
 
+${Y}[小红书 cookie 注入]${N}  不配 REDNOTE_COOKIES → 9 个工具只剩 5 个 ctrip_*, xhs_* 不显示
+  export REDNOTE_COOKIES='a1=xxx; web_session=yyy; ...'   # 加到 shell rc 永久生效
   DevTools 复制: xiaohongshu.com → F12 → Application → Cookies
   → 全选 → Ctrl+C → 粘到 REDNOTE_COOKIES 值
 
-  没 cookie → ctrip_* 5 工具正常, xhs_* 不显示
-"
-fi)
-
-${Y}[mcphub]${N}  Web UI 手动加 stdio server:
-  Name:   携程官网
-  Cmd:    $VENV/bin/python
-  Args:   -m ctrip_mcp.server
-  Env:    REDNOTE_COOKIES='a1=xxx; web_session=yyy; ...'
-
-${Y}[Claude Code]${N}  在项目根加 .mcp.json:
-{
-  "mcpServers": {
-    "ctrip": {
-      "command": "$VENV/bin/python",
-      "args": ["-m", "ctrip_mcp.server"],
-      "cwd": "$INSTALL_DIR"
-    }
-  }
-}
-
-${Y}[直接跑]${N}  stdio MCP 客户端:
-  $VENV/bin/python -m ctrip_mcp.server
-  # 配 cookie: REDNOTE_COOKIES='...' $VENV/bin/python -m ctrip_mcp.server
+${Y}[跑一遍 mcp_register.sh 速查]${N}
+  bash $INSTALL_DIR/mcp_register.sh --dry-run     # 预览
+  bash $INSTALL_DIR/mcp_register.sh               # 注册所有客户端
+  bash $INSTALL_DIR/mcp_register.sh --unregister  # 删 ctrip entry
 
 EOF
