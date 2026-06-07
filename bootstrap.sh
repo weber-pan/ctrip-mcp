@@ -68,12 +68,22 @@ pip install --quiet -e .
 CHROMIUM_HINT="$HOME/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
 if [ -x "$CHROMIUM_HINT" ]; then
   log "chromium 已就位: $CHROMIUM_HINT"
-elif command -v playwright >/dev/null 2>&1; then
-  log "下载 chromium (~150MB)..."
-  playwright install chromium || warn "playwright install 失败, 可手动指定 CTRIP_CHROMIUM"
+  # 测一下能不能跑 (--version, 1s 超时)
+  if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
+    log "chromium --version 正常 (依赖齐)"
+  else
+    warn "chromium 存在但 --version 失败, 大概率缺系统库 (libnss3/libxkbcommon0 等)"
+    warn "  Debian/Ubuntu 容器跑 (修):"
+    warn "    bash $INSTALL_DIR/scripts/install_deps.sh"
+    warn "  Alpine 容器跑:"
+    warn "    apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alsa-lib gtk+3.0 font-noto-cjk"
+  fi
+elif [ -x "$(echo $HOME/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tr '*' 'a' | xargs -I{} ls -d {} 2>/dev/null | head -1)" ]; then
+  log "headless_shell 已就位"
 else
-  warn "未找到 playwright, 跳过 chromium 下载"
-  warn "请手动设置 CTRIP_CHROMIUM 指向已有 chrome"
+  log "下载 chromium (~150MB)..."
+  "$VENV/bin/playwright" install chromium 2>&1 | tail -5 || \
+    warn "chromium 下载失败, 可手动设置 CTRIP_CHROMIUM"
 fi
 
 # 6. 健康检查

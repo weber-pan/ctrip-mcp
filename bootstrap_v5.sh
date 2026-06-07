@@ -71,6 +71,15 @@ fi
 
 if [ -x "$CHROMIUM_HINT" ]; then
   log "chromium 已就位: $CHROMIUM_HINT"
+  if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
+    log "chromium --version 正常 (依赖齐)"
+  else
+    warn "chromium 存在但 --version 失败, 大概率缺系统库"
+    warn "  Debian/Ubuntu 容器跑 (修):"
+    warn "    bash $INSTALL_DIR/scripts/install_deps.sh"
+    warn "  Alpine:"
+    warn "    apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alasa-lib"
+  fi
 else
   log "下载 chromium (~150MB)..."
   "$VENV/bin/playwright" install chromium 2>&1 | tail -5 || \
