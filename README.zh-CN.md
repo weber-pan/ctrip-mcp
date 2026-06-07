@@ -190,6 +190,86 @@ bash mcp_register.sh --unregister
 }
 ```
 
+**想用短形式 `ctrip-mcp`**(全局 PATH 可用),做个软链:
+
+```bash
+ln -sf ~/.ctrip-mcp/.venv/bin/ctrip-mcp /usr/local/bin/ctrip-mcp
+```
+
+之后配置文件可以**原样**写:
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data"
+      }
+    }
+  }
+}
+```
+
+## 小红书 (XHS) cookie
+
+`ctrip-mcp` 总共 **9 个工具** —— 5 个旅行工具 (`ctrip_*`) 加 4 个小红书姊妹
+工具 (`xhs_*`)。**4 个 `xhs_*` 工具只在 `REDNOTE_COOKIES_FILE` 指向一个可读
+JSON 文件时才出现在 `tools/list`**,没配就只剩 5 个。
+
+| 工具族 | 数量 | 需 cookie | 工具名 |
+|---|---|---|---|
+| `ctrip_*` (携程) | 5 | 不需要 | `ctrip_spa_capture`、`ctrip_get_product`、`ctrip_compare_subproducts`、`ctrip_get_hotel_price`、`ctrip_health` |
+| `xhs_*` (小红书) | 4 | **需要** | `xhs_search_notes`、`xhs_explore`、`xhs_get_note_content`、`xhs_health` |
+
+**cookie 注入优先级**:
+
+1. `REDNOTE_COOKIES` env —— 原始 cookie 字符串,请求时解析
+2. `REDNOTE_COOKIES_FILE` env —— JSON 文件路径,启动时读取
+3. 都没配 → `xhs_*` 调用返回"请配置我"错误
+
+**怎么抓 cookie** (Chrome DevTools, 30 秒):
+
+1. Chrome 打开 <https://www.xiaohongshu.com>,登录
+2. `F12` → **Application** → **Cookies** → `https://www.xiaohongshu.com`
+3. 全选行 → 右键 **Copy** → 粘成 JSON 数组
+4. 存成 `/opt/data/.secrets/xhs_cookies.json`(路径随便)
+
+```json
+[
+  {"name": "a1", "value": "xxx", "domain": ".xiaohongshu.com", "path": "/"},
+  {"name": "web_session", "value": "yyy", "domain": ".xiaohongshu.com", "path": "/"},
+  {"name": "webId", "value": "zzz", "domain": ".xiaohongshu.com", "path": "/"}
+]
+```
+
+加到 MCP 配置里:
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data",
+        "REDNOTE_COOKIES_FILE": "/opt/data/.secrets/xhs_cookies.json"
+      }
+    }
+  }
+}
+```
+
+> **为啥用文件而不是 env 直配?** `REDNOTE_COOKIES_FILE` 控制 4 个
+> `xhs_*` 工具**是否在 `tools/list` 中列出**。`REDNOTE_COOKIES` env 只
+> 在**实际请求**时才生效 —— 配了它工具能跑但 MCP 客户端看不见工具列表。
+> **想 9 工具全亮,必须配 `REDNOTE_COOKIES_FILE`**。
+
+> **安全提示**:cookie 等于完整账号权限,**别提交到 git**、**别往共享
+> 聊天里贴**。泄露了立即在小红书该设备**退出 → 重登 → 重新抓**。
+
+> **过期**:小红书 cookie 一般 1-2 周失效。`xhs_*` 工具开始返回空数据
+> 或登录报错时,重新抓一次。
+
 **注册完记得重启 MCP 客户端** (Claude Code / Cursor / Windsurf)。
 Hermes/mcphub **不用重启**,改完 env 配置下次 reload 自动生效。
 

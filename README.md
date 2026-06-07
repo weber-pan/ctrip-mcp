@@ -213,6 +213,91 @@ The script auto-detects the `ctrip-mcp` executable in this order:
 }
 ```
 
+**Symlink shortcut** (if you prefer the short form `ctrip-mcp` to work
+on `$PATH` everywhere):
+
+```bash
+ln -sf ~/.ctrip-mcp/.venv/bin/ctrip-mcp /usr/local/bin/ctrip-mcp
+```
+
+Then the README example config works literally:
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data"
+      }
+    }
+  }
+}
+```
+
+## Rednote (XHS) cookies
+
+`ctrip-mcp` ships **9 tools** total — 5 travel tools (`ctrip_*`) plus
+4 sister tools for 小红书 (`xhs_*`). The 4 `xhs_*` tools only appear in
+`tools/list` when `REDNOTE_COOKIES_FILE` points to a readable JSON
+file; otherwise you get 5 tools.
+
+| Tool family | Count | Cookie required | Tools |
+|---|---|---|---|
+| `ctrip_*` (携程) | 5 | No | `ctrip_spa_capture`, `ctrip_get_product`, `ctrip_compare_subproducts`, `ctrip_get_hotel_price`, `ctrip_health` |
+| `xhs_*` (小红书) | 4 | **Yes** | `xhs_search_notes`, `xhs_explore`, `xhs_get_note_content`, `xhs_health` |
+
+**How the cookie flows** (priority order):
+
+1. `REDNOTE_COOKIES` env — raw cookie string, parsed at request time
+2. `REDNOTE_COOKIES_FILE` env — path to a JSON file, parsed at startup
+3. No cookies → `xhs_*` calls return a helpful "configure me" error
+
+**Grab the cookies** (Chrome DevTools, 30 seconds):
+
+1. Open <https://www.xiaohongshu.com> in Chrome, log in
+2. `F12` → **Application** → **Cookies** → `https://www.xiaohongshu.com`
+3. Right-click all rows → **Copy** → paste into a JSON array
+4. Save as `/opt/data/.secrets/xhs_cookies.json` (or anywhere you like)
+
+```json
+[
+  {"name": "a1", "value": "xxx", "domain": ".xiaohongshu.com", "path": "/"},
+  {"name": "web_session", "value": "yyy", "domain": ".xiaohongshu.com", "path": "/"},
+  {"name": "webId", "value": "zzz", "domain": ".xiaohongshu.com", "path": "/"}
+]
+```
+
+Then add the env var:
+
+```json
+{
+  "mcpServers": {
+    "ctrip": {
+      "command": "ctrip-mcp",
+      "env": {
+        "CTRIP_DATA_DIR": "/opt/data/ctrip-data",
+        "REDNOTE_COOKIES_FILE": "/opt/data/.secrets/xhs_cookies.json"
+      }
+    }
+  }
+}
+```
+
+> **Why a file, not the env var directly?** `REDNOTE_COOKIES_FILE`
+> controls whether the 4 `xhs_*` tools appear in `tools/list`. The
+> `REDNOTE_COOKIES` env var only kicks in for actual requests, so the
+> tools would be hidden from MCP clients even though they would work
+> if called. **Always set `REDNOTE_COOKIES_FILE` for the 9-tool
+> experience.**
+
+> **Security note:** cookies grant full account access. Don't commit
+> them to git, don't paste them in shared chats. If your cookie leaks,
+> log out of XHS on that device, log back in, and re-grab.
+
+> **Expiration:** XHS cookies typically last 1-2 weeks. If `xhs_*` tools
+> start returning empty results or login errors, re-grab them.
+
 **After registration, restart your MCP client** (Claude Code / Cursor
 / Windsurf) to pick up the new server. Hermes/mcphub does not need a
 restart — it picks up the new entry on the next config reload.
