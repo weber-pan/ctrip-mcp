@@ -2,7 +2,7 @@
 
 ## 方案 A: mcphub web UI 手动加 (推荐, 1 分钟)
 
-登录 `https://mcp.webertl.top:33399` → **MCP Servers** → **Add Server** → 选 **Stdio**:
+登录 `https://mcphub-server:port` → **MCP Servers** → **Add Server** → 选 **Stdio**:
 
 | 字段 | 值 |
 |---|---|
