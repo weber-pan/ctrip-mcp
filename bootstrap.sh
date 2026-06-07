@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bootstrap.sh — 从 0 一键安装 + 验证 ctrip-mcp
+# bootstrap.sh — 从 0 一键安装 + 验证 ctrip-mcp (含小红书集成)
 #
 # 用法 (任何环境, 包括 Docker 容器 / 全新 VPS / Mac / Linux):
 #   curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
@@ -10,11 +10,12 @@
 #   1. 探测环境 (Python ≥ 3.10, 网络)
 #   2. git clone (or pull if exists)
 #   3. 创建 venv
-#   4. pip install -e .
+#   4. pip install -e . (含 ctrip_mcp + rednote_mcp)
 #   5. 探测/下载 chromium
-#   6. 跑 ctrip-mcp 5 工具健康检查
-#   7. 跑 e2e (抓沙巴产品 64158367, 验证 ~25s)
-#   8. 提示下一步: Claude Code / Hermes / mcphub 接入
+#   6. 验证 rednote_mcp 导入 (小红书集成)
+#   7. 跑 ctrip-mcp 工具列表健康检查 (5 ctrip + 4 xhs)
+#   8. 跑 e2e (抓沙巴产品 64158367, 验证 ~25s)
+#   9. 提示下一步: mcphub + cookie 配置
 
 set -e
 
@@ -59,8 +60,8 @@ fi
 source "$VENV/bin/activate"
 log "venv: $VENV"
 
-# 4. pip install
-log "装依赖 (mcp + playwright + httpx + pydantic)..."
+# 4. pip install (含 ctrip_mcp + rednote_mcp)
+log "装依赖 (mcp + playwright + httpx + pydantic + 小红书)..."
 pip install --quiet --upgrade pip
 pip install --quiet -e .
 
@@ -93,14 +94,23 @@ else
     warn "chromium 下载失败, 可手动设置 CTRIP_CHROMIUM"
 fi
 
-# 6. 健康检查
-log "ctrip-mcp 工具列表 (stdio MCP)..."
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bootstrap","version":"0"}}}' \
-  | timeout 5 "$VENV/bin/python" -m ctrip_mcp.server 2>/dev/null \
-  | python3 -c 'import sys,json; d=json.loads(sys.stdin.read()); tools=d.get("result",{}).get("capabilities",{}).get("tools",{}); print(f"  工具能力: {len(tools)} 个" if isinstance(tools, dict) else f"  ✓ 协议握手成功")' \
-  || warn "MCP 握手失败 (可能是 stdio 限制, 跳到 e2e 验证)"
+# 6. 验证 rednote_mcp
+log "验证 rednote_mcp (小红书集成)..."
+if "$VENV/bin/python" -c "from rednote_mcp import xhs_core; print(f'  ✓ rednote_mcp v{xhs_core.__version__ if hasattr(xhs_core, \"__version__\") else \"?\"}')" 2>/dev/null; then
+  log "  rednote_mcp 就绪 (xhs_* 工具可用, 需配 cookie)"
+else
+  warn "  rednote_mcp 导入失败 — 不影响 ctrip_* 工具"
+fi
 
-# 7. e2e 测试
+# 7. 健康检查
+log "ctrip-mcp 工具列表 (stdio MCP)..."
+TOOL_OUT=$(echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"bootstrap","version":"0"}}}' \
+  | timeout 5 "$VENV/bin/python" -m ctrip_mcp.server 2>/dev/null \
+  | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); caps=d.get('result',{}).get('capabilities',{}); tools=caps.get('tools',{}); print(f'工具: {len(tools)} 个' if isinstance(tools, dict) else '协议握手成功')" 2>/dev/null) \
+  || TOOL_OUT="MCP 握手超时 (stdio 限制, 跳到 e2e)"
+log "  $TOOL_OUT"
+
+# 8. e2e 测试
 log "e2e 测试 (抓沙巴 64158367, ~25s)..."
 E2E_OUT=$("$VENV/bin/python" scripts/test_e2e.py 2>&1 || true)
 if echo "$E2E_OUT" | grep -q "name:\|duration:\|saved"; then
@@ -121,14 +131,33 @@ else
   warn "     CTRIP_DATA_DIR=/opt/data/ctrip-data $VENV/bin/python -c 'import asyncio, sys; sys.path.insert(0, \"$INSTALL_DIR/src\"); from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
 fi
 
-# 8. 下一步
+# 9. 下一步
 cat <<EOF
 
 ${G}========================================${N}
 ${G}✓ ctrip-mcp 安装完成${N}
 ${G}========================================${N}
 
-下一步: 接入 AI 客户端 (任选)
+$(if "$VENV/bin/python" -c "from rednote_mcp import xhs_core" 2>/dev/null; then
+echo "${Y}[小红书集成]${N}
+  xhs_* 4 工具已就绪! 需配 cookie 才可见:
+
+  mcphub: 改 REDNOTE_COOKIES env → 重启服务
+  或在系统设环境变量再启动 MCP server:
+    export REDNOTE_COOKIES='a1=xxx; web_session=yyy; ...'
+
+  DevTools 复制: xiaohongshu.com → F12 → Application → Cookies
+  → 全选 → Ctrl+C → 粘到 REDNOTE_COOKIES 值
+
+  没 cookie → ctrip_* 5 工具正常, xhs_* 不显示
+"
+fi)
+
+${Y}[mcphub]${N}  Web UI 手动加 stdio server:
+  Name:   携程官网
+  Cmd:    $VENV/bin/python
+  Args:   -m ctrip_mcp.server
+  Env:    REDNOTE_COOKIES='a1=xxx; web_session=yyy; ...'
 
 ${Y}[Claude Code]${N}  在项目根加 .mcp.json:
 {
@@ -141,20 +170,8 @@ ${Y}[Claude Code]${N}  在项目根加 .mcp.json:
   }
 }
 
-${Y}[Hermes]${N}  在 ~/.hermes/config.yaml 加:
-  mcp_servers:
-    - name: ctrip
-      command: $VENV/bin/python
-      args: ["-m", "ctrip_mcp.server"]
-      workdir: $INSTALL_DIR
-
-${Y}[mcphub]${N}  Web UI 手动加 stdio server:
-  Name:   ctrip
-  Cmd:    $VENV/bin/python
-  Args:   -m ctrip_mcp.server
-  Workdir: $INSTALL_DIR
-
 ${Y}[直接跑]${N}  stdio MCP 客户端:
   $VENV/bin/python -m ctrip_mcp.server
+  # 配 cookie: REDNOTE_COOKIES='...' $VENV/bin/python -m ctrip_mcp.server
 
 EOF
