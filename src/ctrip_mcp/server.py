@@ -33,8 +33,6 @@ from .capture import spa_capture, parse_daily_min_prices, find_chromium, _find_f
 try:
     from rednote_mcp import xhs_core as _xhs
     _XHS_AVAILABLE = True
-    _REDNOTE_COOKIES_FILE = os.environ.get("REDNOTE_COOKIES_FILE", "/opt/data/.secrets/xhs_cookies.json")
-    _XHS_HAS_COOKIE = bool(_xhs._has_cookie_file(_REDNOTE_COOKIES_FILE))
 except ImportError as e:
     _XHS_AVAILABLE = False
     _XHS_IMPORT_ERROR = str(e)
@@ -126,17 +124,19 @@ _CTRIP_TOOLS: list = [
 
 
 def _xhs_tool_defs() -> list:
-    """小红书 4 tool (集成自 rednote-mcp, 仅在有 cookie 时调用)"""
+    """小红书 4 tool (动态检查 cookie 文件 — 支持 mcphub 到期更新)"""
     if not _XHS_AVAILABLE:
         return []
-    if not _XHS_HAS_COOKIE:
-        return []  # 没 cookie 就隐藏 — 符合用户预期
+    cookies_file = os.environ.get("REDNOTE_COOKIES_FILE", "/opt/data/.secrets/xhs_cookies.json")
+    if not _xhs._has_cookie_file(cookies_file):
+        return []  # 没 cookie 就隐藏, 更新 cookie 文件后自动出现
     return [
         Tool(
             name="xhs_search_notes",
             description=(
                 "小红书关键词搜索, 返回标题+URL 列表。\n"
-                "**前置**: 启动时检测到 REDNOTE_COOKIES_FILE (16 cookie)。\n"
+                "**前置**: 配好 REDNOTE_COOKIES_FILE 环境变量, 有 16 个有效 cookie。\n"
+                "**动态**: cookie 到期可更新文件, 下次调用自动重新注入。\n"
                 "**场景**: 旅游攻略/真实体验/人均价/避坑 等站旅客角度的素材。"
             ),
             inputSchema={
