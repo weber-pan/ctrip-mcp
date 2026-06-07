@@ -41,8 +41,12 @@ ctrip-mcp 内嵌 rednote-mcp, **有 cookie 才有 xhs_* tool**。
 ```yaml
 # mcphub Add Server 时配 env (推荐):
 env:
-  REDNOTE_COOKIES: '[{"name":"a1","value":"xxx"},{"name":"web_session","value":"yyy"},...]'
+  REDNOTE_COOKIES: 'a1=xxx; web_session=yyy; abRequestId=zzz; ...'
 ```
+
+**DevTools 怎么复制**: `web.xiaohongshu.com` → F12 → Application → Cookies → `.xiaohongshu.com` → 全选 → **Ctrl+C 直接粘贴到 mcphub env**。兼容两种格式:
+- `name=value; name2=value2` (Ctrl+C 直贴)
+- `[{"name":"a1","value":"xxx"}, ...]` (右键 Copy as JSON)
 
 或者用文件路径 (向后兼容):
 ```yaml
