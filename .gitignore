@@ -45,3 +45,6 @@ data/
 # 环境变量
 .env
 .env.local
+
+# Playwright/Chrome 跑出来的用户浏览器数据(含 Cookies)
+browser_data/
