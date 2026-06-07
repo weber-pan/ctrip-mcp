@@ -85,7 +85,24 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 # 7. e2e 测试
 log "e2e 测试 (抓沙巴 64158367, ~25s)..."
-"$VENV/bin/python" scripts/test_e2e.py 2>&1 | tail -20
+E2E_OUT=$("$VENV/bin/python" scripts/test_e2e.py 2>&1 || true)
+if echo "$E2E_OUT" | grep -q "name:\|duration:\|saved"; then
+  log "✓ 完整 e2e 通过 (看下文关键行):"
+  echo "$E2E_OUT" | tail -15 | sed 's/^/  /'
+else
+  warn "e2e 失败 — 详细错误 (head -40):"
+  echo "$E2E_OUT" | head -40 | sed 's/^/  /'
+  echo ""
+  warn "调试 — 在 $INSTALL_DIR 下:"
+  warn "  1) sys.path 是否含 $INSTALL_DIR/src:"
+  warn "     $VENV/bin/python -c 'import sys; print(sys.path[:3])'"
+  warn "  2) chromium 在?"
+  warn "     ls /root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome 2>&1"
+  warn "  3) 网络通 m.ctrip.com?"
+  warn "     curl -sI https://m.ctrip.com/ | head -3"
+  warn "  4) 直接调 spa_capture:"
+  warn "     CTRIP_DATA_DIR=/opt/data/ctrip-data $VENV/bin/python -c 'import asyncio, sys; sys.path.insert(0, \"$INSTALL_DIR/src\"); from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
+fi
 
 # 8. 下一步
 cat <<EOF

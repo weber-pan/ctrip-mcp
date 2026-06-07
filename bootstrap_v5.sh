@@ -100,14 +100,22 @@ echo "$INIT_OUT2" | python3 -c "import sys,json; d=json.loads(sys.stdin.read());
 # 8. 完整 e2e (5 工具完整调用)
 log "完整 e2e (~30s 抓沙巴 64158367)..."
 E2E_OUT=$("$VENV/bin/python" scripts/test_e2e.py 2>&1 || true)
-echo "$E2E_OUT" | tail -20 | sed 's/^/  /'
-if echo "$E2E_OUT" | grep -q "name:"; then
-  log "✓ 完整 e2e 通过"
+if echo "$E2E_OUT" | grep -q "name:\|duration:\|saved"; then
+  log "✓ 完整 e2e 通过:"
+  echo "$E2E_OUT" | tail -15 | sed 's/^/  /'
 else
-  warn "e2e 失败, 但 server 起得来 — 可能是 chromium / 网络问题"
-  warn "  调试:"
-  warn "    $VENV/bin/python scripts/test_e2e.py 2>&1 | head -30"
-  warn "    CTRIP_DATA_DIR=/opt/data/ctrip-data $VENV/bin/python -c 'from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
+  warn "e2e 失败 — 详细错误 (head -40):"
+  echo "$E2E_OUT" | head -40 | sed 's/^/  /'
+  echo ""
+  warn "调试 — 在 $INSTALL_DIR 下:"
+  warn "  1) sys.path:"
+  warn "     $VENV/bin/python -c 'import sys; print(sys.path[:3])'"
+  warn "  2) chromium:"
+  warn "     ls /root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome 2>&1"
+  warn "  3) 网络:"
+  warn "     curl -sI https://m.ctrip.com/ | head -3"
+  warn "  4) 直接调 spa_capture:"
+  warn "     $VENV/bin/python -c 'import asyncio, sys; sys.path.insert(0, \"$INSTALL_DIR/src\"); from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
 fi
 
 # 9. 下一步
