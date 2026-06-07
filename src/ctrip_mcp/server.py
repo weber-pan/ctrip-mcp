@@ -42,7 +42,7 @@ __all__ = ["main", "app"]
 
 DATA_DIR = Path(os.environ.get("CTRIP_DATA_DIR", "/opt/data/ctrip-data"))
 
-app = Server("ctrip-mcp")
+app = Server("ctrip-mcp", version=__version__)
 
 
 # ==================== 携程 5 个 tool (固定暴露) ====================

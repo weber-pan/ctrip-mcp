@@ -1,5 +1,41 @@
 # 更新日志 (CHANGELOG)
 
+## [0.5.0] - 2026-06-07
+
+### docs — README rewrite (PinchBench style) + mcp_register.sh + 双语同步
+
+#### README 公开化重写 (commit 4961f10)
+- PinchBench 范式: ASCII hero (pyfiglet smslant 5 行) + 3 徽章 + 单行副标题 + 左对齐标题
+- 工具数 5 → 9 (5 ctrip_* + 4 xhs_*), 跟 server.py 真实工具名对齐
+- 新建 README.zh-CN.md (~7.8KB), 与 README.md 严格对称
+
+#### mcp_register.sh — 客户端零手动配置 (commit f97a182)
+- 新加 8.4KB / +x 脚本: 探测 $CTRIP_MCP_BIN env → which → ~/.ctrip-mcp/.venv/bin/ → /usr/local/bin
+- 自动注册 ctrip entry 到 4 客户端: Claude Code / Cursor / Windsurf / Hermes-mcphub
+- 用 venv 自带 python3 (避免系统 python 缺 yaml) 写 JSON/YAML
+- 保留其它 mcpServers entry, 不覆盖; 支持 --dry-run / --unregister 幂等
+- bootstrap.sh #9 节自动调脚本, 末尾 #10 节保留手动 fallback 提示
+
+#### Client wiring 节扩展 (commit 221dcdb)
+- Symlink shortcut: `ln -sf ~/.ctrip-mcp/.venv/bin/ctrip-mcp /usr/local/bin/ctrip-mcp`
+  → 之后配置可原样用 "command": "ctrip-mcp"
+- Rednote (XHS) cookies 完整节: 9 工具真实名 + cookie 注入优先级 + 抓取 30s 教程
+- **REDNOTE_COOKIES_FILE 提示框**: 控制 xhs_* 是否在 tools/list 显示, REDNOTE_COOKIES
+  env 配了能跑工具但 MCP 客户端看不见, **必须配 REDNOTE_COOKIES_FILE**
+
+#### 元数据 + 隐私
+- bootstrap.sh 仓库 URL 全切 github (commit 7542a3b): gitee.com → github.com
+- .gitignore 加 browser_data/ (commit f98aad7): Chrome Cookies SQLite 含 6 个 xhs cookie
+- browser_data/ 移出仓库归档到 /opt/data/ctrip-mcp-browser_data-archive.20260607-225708/
+- **版本号全栈对齐 0.1.0 → 0.5.0**: pyproject.toml + src/ctrip_mcp/__init__.py 双写
+- **serverInfo 修复**: server.py:45 `app = Server("ctrip-mcp")` → `app = Server("ctrip-mcp", version=__version__)`
+  之前 serverInfo.version 错误地报 MCP SDK 版本 (1.27.2), 修后正确报 ctrip-mcp 0.5.0
+  stdio 启动验证: ✅ server reports name='ctrip-mcp' version='0.5.0'
+
+#### 公开发布
+- 推到 GitHub: https://github.com/weber-pan/ctrip-mcp (HTTPS+PAT, SSH 22 被墙)
+- 同步 Gitee: git@gitee.com:weber-pan/ctrip-mcp.git (SSH, 本机 key 已认证)
+
 ## [0.3.0] - 2026-06-07
 
 ### 升级 — ctrip-product-decision-deck v5 (旅客决策手册 + 官方图)

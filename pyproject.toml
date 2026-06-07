@@ -1,6 +1,6 @@
 [project]
 name = "ctrip-mcp"
-version = "0.1.0"
+version = "0.5.0"
 description = "Ctrip MCP server — Playwright + chromium real-capture m端 h5 SPA graphql,拿到真实价格/班期/酒店/点评数据。不是 wendao LLM 串台版。"
 readme = "README.md"
 requires-python = ">=3.10"
