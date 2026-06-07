@@ -27,6 +27,18 @@ from mcp.types import Tool, TextContent
 from . import __version__
 from .capture import spa_capture, parse_daily_min_prices, find_chromium, _find_file, _parse_net_date
 
+# 小红书 集成 (复用 rednote-mcp 浏览器 + cookie)
+# 设计: 启动时检查 REDNOTE_COOKIES_FILE 存在 → 暴露 xhs_* 4 tool
+#      不存在 → 隐藏 (调用会返 "未配置 cookie")
+try:
+    from rednote_mcp import xhs_core as _xhs
+    _XHS_AVAILABLE = True
+    _REDNOTE_COOKIES_FILE = os.environ.get("REDNOTE_COOKIES_FILE", "/opt/data/.secrets/xhs_cookies.json")
+    _XHS_HAS_COOKIE = bool(_xhs._has_cookie_file(_REDNOTE_COOKIES_FILE))
+except ImportError as e:
+    _XHS_AVAILABLE = False
+    _XHS_IMPORT_ERROR = str(e)
+
 # 让 `python -m ctrip_mcp.server` / `uv run ctrip-mcp` 都能找到 main
 __all__ = ["main", "app"]
 
@@ -35,85 +47,136 @@ DATA_DIR = Path(os.environ.get("CTRIP_DATA_DIR", "/opt/data/ctrip-data"))
 app = Server("ctrip-mcp")
 
 
-@app.list_tools()
-async def list_tools() -> list[Tool]:
+# ==================== 携程 5 个 tool (固定暴露) ====================
+_CTRIP_TOOLS: list = [
+    Tool(
+        name="ctrip_spa_capture",
+        description=(
+            "抓取携程 m 端 h5 SPA 真实 graphql/soa body (Playwright + chromium 真抓)。"
+            "传入 productId, 返回 8 个核心接口完整 JSON 落盘路径 + DOM 文本 + 截图。"
+            "适用: 已知产品号, 要拿真实价格/班期/酒店/点评/行程。"
+            "耗时: ~25s/产品(滚动触发 lazy load)。"
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "product_id": {"type": ["string", "integer"], "description": "携程产品号, 如 64158367"},
+                "depart_city_id": {"type": ["string", "integer"], "default": 2, "description": "出发城市 ID, 2=上海"},
+                "data_dir": {"type": "string", "default": str(DATA_DIR), "description": "产物落盘目录"},
+                "timeout": {"type": ["string", "integer"], "default": 60, "description": "抓取超时秒"},
+                "scroll": {"type": ["string", "boolean"], "default": True, "description": "是否滚动触发懒加载接口"},
+            },
+            "required": ["product_id"],
+        },
+    ),
+    Tool(
+        name="ctrip_get_product",
+        description=(
+            "解析已抓取的产品数据: 4 条线路/价格日历/酒店/点评。"
+            "需要先跑 ctrip_spa_capture。"
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "product_id": {"type": ["string", "integer"], "description": "携程产品号"},
+                "data_dir": {"type": "string", "default": str(DATA_DIR)},
+            },
+            "required": ["product_id"],
+        },
+    ),
+    Tool(
+        name="ctrip_compare_subproducts",
+        description=(
+            "对 4 个 sub-productId 各跑一次抓取, 补齐 B/C/D 行程。"
+            "4 条线共享同一 8 家酒店池, D1-D3 D6-D7 完全一致, 真差异在 D4-D5 入住哪家。"
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "main_product_id": {"type": ["string", "integer"], "description": "主产品号"},
+                "sub_product_ids": {"type": "array", "items": {"type": ["string", "integer"]}, "description": "4 个 sub-productId"},
+            },
+            "required": ["main_product_id", "sub_product_ids"],
+        },
+    ),
+    Tool(
+        name="ctrip_get_hotel_price",
+        description=(
+            "查酒店 7/4-7/9 真实房型+价(走 AI_Go_Hotel_MCP 适配)。"
+            "覆盖 8 家亚庇 5 钻酒店里的 3 家: 丹绒亚路香格里拉/凯悦尚萃/艾美。"
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "hotel_id": {"type": "integer", "description": "MCP hotelId, 46726=丹绒亚路/1579855=凯悦尚萃/46738=艾美"},
+                "check_in": {"type": "string", "description": "入住日期 YYYY-MM-DD"},
+                "check_out": {"type": "string", "description": "退房日期 YYYY-MM-DD"},
+                "adult_count": {"type": "integer", "default": 2},
+                "room_count": {"type": "integer", "default": 1},
+            },
+            "required": ["hotel_id", "check_in", "check_out"],
+        },
+    ),
+    Tool(
+        name="ctrip_health",
+        description="健康检查: chromium 在不在 / 产物目录可写 / Playwright 可导入。",
+        inputSchema={"type": "object", "properties": {}},
+    ),
+]
+
+
+def _xhs_tool_defs() -> list:
+    """小红书 4 tool (集成自 rednote-mcp, 仅在有 cookie 时调用)"""
+    if not _XHS_AVAILABLE:
+        return []
+    if not _XHS_HAS_COOKIE:
+        return []  # 没 cookie 就隐藏 — 符合用户预期
     return [
         Tool(
-            name="ctrip_spa_capture",
+            name="xhs_search_notes",
             description=(
-                "抓取携程 m 端 h5 SPA 真实 graphql/soa body (Playwright + chromium 真抓)。"
-                "传入 productId, 返回 8 个核心接口完整 JSON 落盘路径 + DOM 文本 + 截图。"
-                "适用: 已知产品号, 要拿真实价格/班期/酒店/点评/行程。"
-                "耗时: ~25s/产品(滚动触发 lazy load)。"
-            ),
-            inputSchema={
-                "type": "object",
-                # 兼容 mcphub 包装工具时把 int/bool 都当 string 传:
-                # schema 接受 string|integer, server 端强制转 int
-                "properties": {
-                    "product_id": {"type": ["string", "integer"], "description": "携程产品号, 如 64158367"},
-                    "depart_city_id": {"type": ["string", "integer"], "default": 2, "description": "出发城市 ID, 2=上海"},
-                    "data_dir": {"type": "string", "default": str(DATA_DIR), "description": "产物落盘目录"},
-                    "timeout": {"type": ["string", "integer"], "default": 60, "description": "抓取超时秒"},
-                    "scroll": {"type": ["string", "boolean"], "default": True, "description": "是否滚动触发懒加载接口"},
-                },
-                "required": ["product_id"],
-            },
-        ),
-        Tool(
-            name="ctrip_get_product",
-            description=(
-                "解析已抓取的产品数据: 4 条线路/价格日历/酒店/点评。"
-                "需要先跑 ctrip_spa_capture。"
+                "小红书关键词搜索, 返回标题+URL 列表。\n"
+                "**前置**: 启动时检测到 REDNOTE_COOKIES_FILE (16 cookie)。\n"
+                "**场景**: 旅游攻略/真实体验/人均价/避坑 等站旅客角度的素材。"
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "product_id": {"type": ["string", "integer"], "description": "携程产品号"},
-                    "data_dir": {"type": "string", "default": str(DATA_DIR)},
+                    "keywords": {"type": "string", "description": "搜索词, 如 '京都7日游 自由行'"},
+                    "limit": {"type": "integer", "default": 10, "maximum": 30},
                 },
-                "required": ["product_id"],
+                "required": ["keywords"],
             },
         ),
         Tool(
-            name="ctrip_compare_subproducts",
-            description=(
-                "对 4 个 sub-productId 各跑一次抓取, 补齐 B/C/D 行程。"
-                "4 条线共享同一 8 家酒店池, D1-D3 D6-D7 完全一致, 真差异在 D4-D5 入住哪家。"
-            ),
+            name="xhs_explore",
+            description="小红书首页推荐 feed。无关键词, 拿当下热门。",
+            inputSchema={"type": "object", "properties": {"limit": {"type": "integer", "default": 10}}},
+        ),
+        Tool(
+            name="xhs_get_note_content",
+            description="拿小红书笔记正文 (前 5000 字)。需先 search 拿 URL。",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "main_product_id": {"type": ["string", "integer"], "description": "主产品号"},
-                    "sub_product_ids": {"type": "array", "items": {"type": ["string", "integer"]}, "description": "4 个 sub-productId"},
+                    "url": {"type": "string"},
+                    "max_chars": {"type": "integer", "default": 5000},
                 },
-                "required": ["main_product_id", "sub_product_ids"],
+                "required": ["url"],
             },
         ),
         Tool(
-            name="ctrip_get_hotel_price",
-            description=(
-                "查酒店 7/4-7/9 真实房型+价(走 AI_Go_Hotel_MCP 适配)。"
-                "覆盖 8 家亚庇 5 钻酒店里的 3 家: 丹绒亚路香格里拉/凯悦尚萃/艾美。"
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "hotel_id": {"type": "integer", "description": "MCP hotelId, 46726=丹绒亚路/1579855=凯悦尚萃/46738=艾美"},
-                    "check_in": {"type": "string", "description": "入住日期 YYYY-MM-DD"},
-                    "check_out": {"type": "string", "description": "退房日期 YYYY-MM-DD"},
-                    "adult_count": {"type": "integer", "default": 2},
-                    "room_count": {"type": "integer", "default": 1},
-                },
-                "required": ["hotel_id", "check_in", "check_out"],
-            },
-        ),
-        Tool(
-            name="ctrip_health",
-            description="健康检查: chromium 在不在 / 产物目录可写 / Playwright 可导入。",
+            name="xhs_health",
+            description="检查小红书模块: cookie 文件 / 浏览器 / 登录态。",
             inputSchema={"type": "object", "properties": {}},
         ),
     ]
+
+
+@app.list_tools()
+async def list_tools() -> list[Tool]:
+    # 5 个 ctrip + (有 cookie 时 4 个 xhs) = 5 或 9 tool
+    return _CTRIP_TOOLS + _xhs_tool_defs()
 
 
 @app.call_tool()
@@ -296,6 +359,37 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 health["xhs_available"] = False
                 health["xhs_import_error"] = _XHS_IMPORT_ERROR
             return [TextContent(type="text", text=json.dumps(health, ensure_ascii=False, indent=2))]
+        # ==================== 小红书 4 tool (集成自 rednote-mcp) ====================
+        elif name in ("xhs_search_notes", "xhs_explore", "xhs_get_note_content", "xhs_health"):
+            if not _XHS_AVAILABLE:
+                return [TextContent(type="text", text=(
+                    f"❌ rednote-mcp 未装: {_XHS_IMPORT_ERROR}\n"
+                    f"   装: pip install -e /opt/data/skills/rednote-mcp"
+                ))]
+            if not _XHS_HAS_COOKIE:
+                return [TextContent(type="text", text=(
+                    f"⚠️ xhs_* tool 启动时未检测到 cookie 文件:\n"
+                    f"   {_REDNOTE_COOKIES_FILE}\n"
+                    f"   启动时加环境变量: REDNOTE_COOKIES_FILE=/path/to/xhs_cookies.json\n"
+                    f"   或 mcphub 服务配置 env 注入 cookie 路径"
+                ))]
+            if name == "xhs_health":
+                return [TextContent(type="text", text=json.dumps(await _xhs.xhs_health(), ensure_ascii=False, indent=2))]
+            if name == "xhs_search_notes":
+                r = await _xhs.xhs_search_notes(
+                    keywords=_as_str(arguments.get("keywords")),
+                    limit=_as_int(arguments.get("limit"), 10),
+                )
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
+            if name == "xhs_explore":
+                r = await _xhs.xhs_explore(limit=_as_int(arguments.get("limit"), 10))
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
+            if name == "xhs_get_note_content":
+                r = await _xhs.xhs_get_note_content(
+                    url=_as_str(arguments.get("url")),
+                    max_chars=_as_int(arguments.get("max_chars"), 5000),
+                )
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
         else:
             return [TextContent(type="text", text=f"❌ unknown tool: {name}")]
     except Exception as e:

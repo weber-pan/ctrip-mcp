@@ -88,12 +88,19 @@
 
 ## [0.4.0] - 2026-06-07
 
-### docs — 指向独立 rednote-mcp 服务 (撤回 v0.4.0-alpha 的集成)
+### feat — 内嵌 rednote-mcp (小红书真实数据, 条件集成)
 
-小红书功能拆为**独立** `rednote-mcp` 服务 (https://gitee.com/weber-pan/rednote-mcp),
-在 mcphub 与 ctrip-mcp **并列启动** 即可,两者共享同一份 cookie 文件。
+#### 4 个 xhs_* tool (有 cookie 才暴露, 无 cookie 隐藏)
+- 启动时检测 `REDNOTE_COOKIES_FILE` → 有 cookie 才注册 xhs_* tool
+- 无 cookie → ctrip-mcp 只暴露 5 个 ctrip_* tool, xhs_* 完全不可见
+- mcphub 配 env: `REDNOTE_COOKIES_FILE=/app/.secrets/xhs_cookies.json`
 
-- ✅ 部署更简单: 单独仓库单独装,失败不影响 ctrip
-- ✅ 复用 cookie: 16 cookie 服务于两服务
-- ✅ 触发场景不变: "站旅客角度"/"真实攻略"/"小红书数据" → rednote-mcp 的 `rednote_search_notes`
-- 数据源: https://github.com/JonaFly/RednoteMCP (基于此改造)
+#### 集成实现
+- 复用 rednote-mcp 浏览器实例 + cookie (一份 cookie 两个模块共享)
+- 已验证端到端: 京都7日游 / 日本7日游 搜到 5+ 条真笔记
+- ctrip_health 自动展示 xhs 子模块状态 (cookie 文件/登录态/浏览器)
+
+#### 触发场景
+- "站旅客角度"/"真实攻略"/"小红书数据" → xhs_search_notes
+- "用户游记"/"价格实测"/"避坑" → xhs_get_note_content
+- 数据源: https://github.com/JonaFly/RednoteMCP (基于此改编)

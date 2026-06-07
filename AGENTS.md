@@ -29,10 +29,26 @@ If you are an AI agent and your user gives you a Ctrip product URL like
 | `ctrip_compare_subproducts` | Re-run capture for each sub-productId (for 4-line products). |
 | `ctrip_get_hotel_price` | Fetch real hotel prices for one of the in-route hotels. |
 | `ctrip_health` | Health check — chromium, output dir, last capture timestamp. |
+| `xhs_search_notes` | 小红书关键词搜索 (有 cookie 才暴露, 见下方)。 |
+| `xhs_explore` | 小红书首页推荐 feed (有 cookie 才暴露)。 |
+| `xhs_get_note_content` | 拿小红书笔记正文 (有 cookie 才暴露)。 |
+| `xhs_health` | 小红书模块健康 (有 cookie 才暴露)。 |
 
-> **Note**: 小红书数据走**独立** `rednote-mcp` 服务 (https://gitee.com/weber-pan/rednote-mcp),
-> 在 mcphub 里同时启用即可。两者共享同一份 cookie 文件。
-> 详见 `rednote-mcp/SKILL.md`。
+## Cookie 注入 (小红书)
+
+ctrip-mcp 内嵌 rednote-mcp, **有 cookie 才有 xhs_* tool**。
+
+```yaml
+# mcphub Add Server 时配 env:
+env:
+  REDNOTE_COOKIES_FILE: "/app/.secrets/xhs_cookies.json"
+```
+
+cookie 获取: 用户从 `web.xiaohongshu.com` DevTools → Application → Cookies → .xiaohongshu.com → 全部 copied as JSON → 写文件。
+
+16 个 key: `a1 web_session id_token webId websectiga abRequestId xsecappid gid` 等。
+
+没配 cookie → ctrip-mcp 只暴露 5 个 ctrip_* tool, xhs_* 不可见。
 
 ## Pitfalls (read these)
 
