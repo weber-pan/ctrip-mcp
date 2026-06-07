@@ -1,6 +1,6 @@
 ---
 name: ctrip-product-decision-deck
-description: 携程产品决策手册 PPT 工作流 — 用户给产品 URL → 8 字段确认 → 多 MCP 论证 → ppt-master 21-25 页 SVG → PPTX。触发:用户要做"决策" / "下单" / "选产品" / "值不值" / "对比" / "客群分流" 类 PPT,问"你确定拿到了" / "配色那么丑" / "站在旅客角度" / "做详细点分析到位点" 时。
+description: 携程产品决策手册 PPT 工作流 — 用户给产品 URL → 8 字段确认 → 多 MCP 论证 → ppt-master 21-25 页 SVG → PPTX。触发:用户要做"决策" / "下单" / "选产品" / "值不值" / "对比" / "对比一下" / "客群分流" 类 PPT,问"你确定拿到了" / "配色那么丑" / "站在旅客角度" / "做详细点分析到位点" / "图片也没插入" 时,本 skill 必走「7 项必走检查」防 v1 翻车。**默认必建 4 线对比表 (P06) + 3 张图集页 (P26-P28)**。
 ---
 
 # 携程产品决策手册 PPT 工作流
@@ -8,8 +8,34 @@ description: 携程产品决策手册 PPT 工作流 — 用户给产品 URL → 
 > 给定产品 URL → 输出 21-25 页 16:9 PPT(旅客视角 / 多 MCP 论证 / 数据 4 色标记)
 >
 > 配套 skill: [ctrip-spa-capture](../ctrip-spa-capture/SKILL.md)(e2e 真抓)+ [ctrip-product-report](../ctrip-product-report/SKILL.md)(md 报告)+ [ppt-master](../../ppt-master/skills/ppt-master/SKILL.md)(SVG→PPTX)
+> 配套 MCP 部署: [ctrip-spa-capture/references/mcphub-mcp-127-deploy.md](../ctrip-spa-capture/references/mcphub-mcp-127-deploy.md)(跨 docker + SDK 1.27 + bootstrap_v5)
+
+## 0. Quality Bar — 用户反复要求的 4 个底色(必读,新会话也要从这开始)
+
+> 用户在不同会话里 5+ 次说"做详细点 / 站在旅客角度 / 配色那么丑 / 你确定拿到了 / 分析到位点"。
+> 这是**用户风格偏好**,不只是这次任务的需求。**新会话启动就按这 4 条走**,别等用户喊停。
+
+| # | 底色 | 体现 | 反例 |
+|---|---|---|---|
+| 1 | **数据真实** | 价格/航班/酒店全部**真抓+溯源**(标"间接源"),不糊弄"已交叉验证" | 用 wendao 单一 LLM 总结当"独立第三方" |
+| 2 | **旅客视角** | 关心什么列什么(违约损失/儿童/老年/护照/装备/天气) | 列内部字段,旅客看到"SH ID"="?" |
+| 3 | **配色 + 排版** | 走 ppt-master 71 图表 / editorial 杂志感 / 海岛色,**别一上来自拼** | 纯色块矩形 + 居中白字,像 Word 模板 |
+| 4 | **页数 + 密度** | 一页一个明确论点;不是 1 页塞 100 字也不是 30 页没信息 | 21 页可压到 10 页 / 标准 25-28 页 |
+
+→ 详见 [quality-bar.md](references/quality-bar.md)(用户原话引文 + 反例 + 自查清单)
+
+---
 
 ## 1. Eight Confirmations(8 字段确认,1 句话)
+
+> ⚠ **MANDATORY — A 段 4 出行字段必须问齐再开跑**(2026-06-07 用户原话: "还需要预填 出发和返回日期呢")
+>
+> URL `?city=2` **只含 cityId**(=出发城市),**没有 fromDate/toDate/travelers**!
+> 携程 m 端 SPA 默认展示"最近班期",**用户实际 7/4 是页面下拉选的**。
+> **不预填 → PPT 价格日历展示错班期**(会把 7/11 当 7/4)。
+>
+> **A 段何时可省**: 用户消息里已给齐 4 字段(如"7/4 上海 2 人")→ 不问直接跑。
+> **B 段 4 字段**: 有合理默认(26 页 / 杂志风 / 海岛色 / 16:9),**末尾"要不要改 X?"一钩子即可**。
 
 收到产品 URL 后,**1 句话**问清 A 段 4 出行 + B 段 4 风格:
 
@@ -23,11 +49,14 @@ description: 携程产品决策手册 PPT 工作流 — 用户给产品 URL → 
 "
 ```
 
-> **A2/A3/A4 必问** —— URL 里有 cityId(出发城市),**没有 fromDate/toDate/travelers**!
-> 携程 m 端 SPA 默认展示"最近班期",**用户实际 7/4 是页面下拉选的**,
-> **不预填 → PPT 价格日历展示错班期**。**A 段何时可省**: 用户消息里已给齐 4 字段(如"7/4 上海 2 人")→ 不问直接跑。
-> B 段 4 字段有默认值,**通常不用问**, 末尾"要不要改"一钩子即可。
-> → 详见 [eight-confirmations.md](references/eight-confirmations.md) 完整 4+4 字段表 + cityId 码表
+| A 段字段 | URL 里有? | 必问? | 必问原因 |
+|---|---|---|---|
+| A1 出发城市 | ✅ `?city=2` 自动 = 上海 | ❌ 不用问 | URL 拿 |
+| A2 出发日 | ❌ | ✅ **必问** | 携程默认"最近班期" ≠ 用户实际班期 |
+| A3 返程日 | ❌ | ✅ **必问** | 同上 |
+| A4 人数+客群 | ❌ | ✅ **必问** | 客群分流/装备清单/决策矩阵靠它 |
+
+→ 详见 [eight-confirmations.md](references/eight-confirmations.md) 完整 4+4 字段表 + cityId 码表
 
 ### Step 0: 章节大方向先 1 句确认(别自己定)
 
@@ -403,6 +432,7 @@ ls /opt/data/skills/ppt-master/skills/ppt-master/templates/charts/
 
 ## 6. References
 
+- [quality-bar.md](references/quality-bar.md) — **用户反复要求的 4 个底色 + 自查清单(2026-06-07 新)**
 - [eight-confirmations.md](references/eight-confirmations.md) — 8 字段锁定机制
 - [chapter-blueprint.md](references/chapter-blueprint.md) — 21 页章节模板
 - [ppt-master-usage.md](references/ppt-master-usage.md) — 命令链速查
@@ -421,3 +451,244 @@ ls /opt/data/skills/ppt-master/skills/ppt-master/templates/charts/
 
 - [dl_all_imgs.py](scripts/dl_all_imgs.py) — 补抓 hotel+comment+competitor+ranking 4 类图(extract_images.py 漏的 45+ 张)
 - [m3_vision.js](scripts/m3_vision.js) — M3 原生视觉直调 minimax API(vision_analyze 死掉时的备胎)
+- [ctrip_shopping.py](scripts/ctrip_shopping.py) — 抓 shoppingid + getShoppingDetail (5 段真实酒店 + 航班) (2026-06-07 新)
+- [ctrip_dom_7days.py](scripts/ctrip_dom_7days.py) — 抓图文行程 DOM (D1-D7 + 违约条款 + 6 早餐 1 午餐) (2026-06-07 新)
+- [run_v4.sh](scripts/run_v4.sh) — v4 端到端 (7 参数: productId+cityId+fromDate+toDate+travelers+audience+pages) (2026-06-07 新)
+- [run.sh](scripts/run.sh) — 旧版 2 参数一键跑 (productId+cityId)
+
+## 8. v4 端到端用法 (run_v4.sh)
+
+```bash
+# 1 句命令, 4 出行参数预填
+cd /opt/data/skills/ctrip-product-decision-deck
+./scripts/run_v4.sh <productId> <cityId> <fromDate> <toDate> <travelers> <audience> [pages]
+# 例: ./scripts/run_v4.sh 69762187 2 2026-07-04 2026-07-10 "2 成人" "朋友/双人" 26
+```
+
+`run_v4.sh` 内部跑:
+- Step 1: e2e (ctrip_spa_capture.py)
+- Step 1.1: extract_more.py
+- Step 1.2: ctrip_shopping.py (5 段酒店 + 航班)
+- Step 1.3: ctrip_dom_7days.py (7 日 DOM)
+- Step 1.4: dl_all_imgs.py (60+ 张图)
+- 输出 `spec.yaml` (含 4 出行字段 + 4 风格字段, 写进 ppt-master 项目)
+
+**7 参数说明**:
+1. `productId` — URL 里 `p69762187` 部分
+2. `cityId` — URL `?city=2` 部分 (= 上海, 1=北京, 32=广州)
+3. `fromDate` — 出发日 (YYYY-MM-DD)
+4. `toDate` — 返程日 (YYYY-MM-DD, = fromDate + 行程天数 -1)
+5. `travelers` — `"2 成人"` / `"1 大 1 童"` / `"退休夫妻"`
+6. `audience` — `"朋友/双人"` / `"亲子"` / `"蜜月"` / `"退休"`
+7. `pages` — 可选, 默认 26 (高水准) / 21 (标准) / 12 (精简)
+
+### 8.1 run_v4.sh 失败时排错 (2026-06-07 教训)
+
+> **用户原话**: "测试 (抓沙巴 64158367, ~25s)... JSONDecodeError: Expecting value: line 1 column 1 (char 0)"
+> **教训**: 失败时**不要**只显示 traceback 末尾 (用户看不出真因),**必须** print head -40 + 4 个调试命令。
+
+**v4 必走的错误显示模式**:
+```bash
+E2E_OUT=$("$VENV/bin/python" scripts/test_e2e.py 2>&1 || true)
+if echo "$E2E_OUT" | grep -q "name:\|duration:\|saved"; then
+  log "✓ e2e 通过" + tail -15
+else
+  warn "e2e 失败 — head -40 详细错误:"
+  echo "$E2E_OUT" | head -40 | sed 's/^/  /'
+  warn "调试命令 4 选 1:"
+  warn "  1) sys.path: $VENV/bin/python -c 'import sys; print(sys.path[:3])'"
+  warn "  2) chromium: ls /root/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
+  warn "  3) 网络: curl -sI https://m.ctrip.com/ | head -3"
+  warn "  4) 直接调 spa_capture: $VENV/bin/python -c 'import asyncio, sys; sys.path.insert(0, \"$INSTALL_DIR/src\"); from ctrip_mcp.capture import spa_capture; print(asyncio.run(spa_capture(64158367, 2, scroll=True)))'"
+fi
+```
+
+**test_e2e.py 必加 3 个增强** (2026-06-07 v5):
+1. **导入失败诊断** — sys.path[:5] + `/opt/data/ctrip-mcp/src/ctrip_mcp` 是否存在
+2. **text 长度检查** — `r1[0].text_len=0` 即时提示
+3. **JSONDecodeError 显示前后文** — 头 200 字符 + 尾 200 字符 (定位是导入失败还是 API 返空)
+
+## 9. Gitee 推 skill (2026-06-07)
+
+仓库: https://gitee.com/weber-pan/ctrip-mcp (weber-pan SSH key 已配)
+结构: AGENTS.md + skill/{ctrip-spa-capture, ctrip-product-report, ctrip-product-research, **ctrip-product-decision-deck (新)**}
+
+**5 步推**:
+```bash
+# 1. 浅克隆
+git clone --depth 1 https://gitee.com/weber-pan/ctrip-mcp.git /tmp/ctrip-mcp
+
+# 2. 复制本地 skill 到仓库
+cp -r /opt/data/skills/ctrip-product-decision-deck /tmp/ctrip-mcp/skill/
+
+# 3. 改 AGENTS.md + README.md (3 skill → 4 skill)
+
+# 4. 提交
+cd /tmp/ctrip-mcp
+git config user.name "weber-pan"
+git config user.email "weber-pan@gitee.com"
+git add skill/ctrip-product-decision-deck/ AGENTS.md README.md
+git commit -m "feat(skill): add ctrip-product-decision-deck v4"
+
+# 5. 推送
+git push origin master
+```
+
+→ 详见 [gitee-publish.md](references/gitee-publish.md) 5 步 + 4 大坑 + 验证 3 步
+
+## 10. v5 真实数据再抓后增量更新 pattern (2026-06-07 新)
+
+> **场景**: 已经交付 v4 PPT(28 页)给用户, 用户给新 URL(如 p69762187)要"真实测试 + 完整 PPT"。
+> 旧做法: 重新跑全套 (e2e + extract + shopping + dom + dl_imgs + Step 2-7 = **~50+ tool calls** + 28 张 SVG 重写, 撑爆 quota)
+> **新做法**: 复用 v4 SVG, **只改 3-5 张关键页的文本/数据, 重打 PPTX** = **~20 tool calls** 搞定 28 页
+
+### 10.1 何时走 v5 增量 (vs v6 全新)
+
+| 信号 | 走 v5 增量 | 走 v6 全新 |
+|---|---|---|
+| 新产品 = v4 同一品类 (海岛/跟团游) | ✅ | |
+| 新产品 = 全新品类 (城市观光/邮轮/单机票) | | ✅ |
+| 7 大块章节布局相似 | ✅ | |
+| 章节布局完全不同 (如 v4 是跟团游, v6 是邮轮) | | ✅ |
+| 仅 3-5 张关键页价格/库存/酒店名变 | ✅ | |
+| >10 页数据需重抓/重写 | | ✅ |
+
+### 10.2 v5 增量 5 步 (≤20 tool calls)
+
+```bash
+# 1. e2e 抓新产品 (1 call) — 复用 run.sh 已有逻辑
+python3 scripts/ctrip_spa_capture.py <newPid> <cityId>
+
+# 2. 解析 (1 call) — 直接读 xhr json, 不要 mcp call (节省 1-2 call)
+python3 -c "
+import json
+j = json.load(open('/opt/data/ctrip-data/xhr_VPC_SelectDateProductInfo_h5_<newPid>.json'))
+# 提取: title, dailyMinPrices, minPriceRemark (5 段酒店 + 航班)
+"
+
+# 3. 复制 v4 SVG 框架到 v5 (1 call)
+cp -r /opt/data/skills/ppt-master/skills/ppt-master/projects/cttrip_<oldPid>_v4_deck_<ts>/svg_final \
+      /opt/data/skills/ppt-master/skills/ppt-master/projects/cttrip_<newPid>_v5_deck_<ts>/svg_final_v5
+
+# 4. 改 3-5 张关键页 SVG 文本 (3-5 calls, patch 直接替换)
+#   - P03 核心结论: 标题/价格/库存
+#   - P07 价格日历: 7/1-7/3 价格 (e2e 抓的每日价)
+#   - P08 7 月趋势: 加新最低日期
+#   - P10 决策 KPI: 加库存数
+#   - P22 双人预算: 加库存数
+
+# 5. 重打 PPTX (1 call) — ppt-master svg_to_pptx 自动
+cd /opt/data/skills/ppt-master/skills/ppt-master
+python3 scripts/svg_to_pptx.py projects/cttrip_<newPid>_v5_deck_<ts> -s final
+# → 28 张 0 fail
+
+# 6. 复制到 workspace (1 call)
+cp projects/.../exports/*.pptx /opt/data/home/workspace/<用户文件名>.pptx
+```
+
+### 10.3 SVG 文本替换模板 (patch in Python)
+
+```python
+import re
+p = '/path/to/P07_price_calendar.svg'
+txt = open(p).read()
+# 改 7/1=8200 (旧) → 9159 (新), 7/2=8400 → 8592, 7/3=8892 → 8303
+txt = txt.replace('>8200<', '>9159<', 1)
+txt = txt.replace('>8400<', '>8592<', 1)
+txt = txt.replace('>8892<', '>8303<', 1)
+open(p, 'w').write(txt)
+```
+
+**核对模板** (改前先看):
+```bash
+grep -E "8948|8200|7893|库存" /path/to/P07.svg
+# 期望: 8948 (7/4) + 7893 (7/6) + 8200/8400/8892 (7/1-3)
+```
+
+### 10.4 真实案例 (2026-06-07 p69762187 → v5, p69852382 → v1)
+
+**p69762187 → v5 增量**(2026-06-07):
+- v4 SVG 28 张在 `projects/cttrip_69762187_v4_deck_20260607_094641/svg_final/`
+- 复制为 `svg_final_v5/` 加 README.md
+- 改 3 张关键页: P07 (7/1-7/3 价格) + P08 (加 7/24 ¥7,649) + P10 (加库存 20)
+- `python3 scripts/svg_to_pptx.py <proj> -s final` → 28/28 成功
+- 复制 v5.pptx 到 workspace 交付
+
+**p69852382 → v1 增量**(2026-06-07, 真实跑通):
+- 复用 p69762187 v4 SVG 28 张, 改 6 张关键页: P01 封面 + P03 核心结论 + P07 价格日历 + P08 7 月趋势 + P10 KPI + P22 预算
+- 总 tool calls: 13 (vs 重做全套 50+)
+- **5 个新坑** (踩到并修了):
+  1. **P03 `&` 未转义** (佩妮达&蓝梦) → 改 `&amp;`, 批量正则修全 28 张
+  2. **P07 双人预算公式拼接错** (8948+8263+7893+... 残留) → 单独 patch 一次, re.findall 校验
+  3. **`ctrip_get_product` 数据串台** (返回上一个产品名) → 改直接读落盘 JSON, 不走 mcp
+  4. **`groupCard` 嵌套 None 又崩** (capture.py:250 parse_daily_min_prices 内部) → 双层 fallback `(pi or {}).get(...) or {}`
+  5. **mcphub data_dir ≠ workspace** (返回"已落盘"但 workspace 读不到) → 走 `spa_capture()` 函数直调, 不走 mcp
+- 完整 5 步 + 5 坑 + 12 个价格 mapping + 5 张关键页速查表见 [v5-increment-update.md](references/v5-increment-update.md)
+
+### 10.5 v5 增量必避 3 坑
+
+1. **别用 v4 价格作为新数据参考** — 价格日历按产品变, 每次 e2e 抓的最新价为准
+2. **别重生成 28 张** — 复刻 v4 框架改 3-5 张 = quota 友好;重生成 = 5x tool calls + 不一定更好
+3. **改完必跑 quality_checker** — `python3 scripts/svg_quality_checker.py <proj>/svg_final_v5/` 必须 0 error, 否则 finalize_svg 崩
+
+### 10.6 与 vision 验证
+
+- v5 PPTX 写完后,**不**用 `vision_analyze` 工具 (server 死) — 改 rsvg-convert 直接转 6 张关键页 PNG
+- 用户要看封面/价格/酒店/预算页验证, **截图 1.7MB 1920x1080 PNG** 直接附
+- 详细视觉走 m3_vision (m3-native-vision skill §1)
+
+- [v5-increment-update.md](references/v5-increment-update.md) (5 步 + 3 坑 + 案例)
+- [multi-line-4-bundle-compare.md](references/multi-line-4-bundle-compare.md) **4-线 subProductId 全对比 (2026-06-07 v2 教训: 用户质疑"只给了 A 线")**
+
+---
+
+## 10.7 v3 增量必抓: 官方图片 + P26-P28 图集页 (2026-06-07 p69852382 v3 教训)
+
+**触发场景**: 用户做产品 PPT 且 PDF / 网页里有图(酒店/景点/点评), **必抓 4 类图 + 必建 3 张图集页**, 否则用户回"官方的图片也没插入到 ppt 里面啊"。
+
+### 4 类必抓图 (走 ProductInfo JSON 1 次拿全)
+
+抓完 `ctrip_spa_capture` 后, 读 `/opt/data/ctrip-data/xhr_ProductInfo_2nd_V3_h5_<productId>.json`:
+
+| 类 | JSON 路径 | 数量 | 落盘 |
+|---|---|---|---|
+| **POI 景点** | `data.productInfo.imageStyleInfo.poiInfo.ImagePoiList[].imgUrl` | 10 | `ctrip_images/0N_poi_xxx.jpg` |
+| **酒店实拍** | `data.productInfo.imageStyleInfo.hotelInfo.imageHotelList[].imageList[].imgUrl` | 1 家 3-5 张 | `ctrip_images/1N_hotel_xxx.jpg` |
+| **点评头像** | `data.productInfo.commentInfo.comments[].userInfo.avatarUrl` | 2-5 张 | `ctrip_images/1N_avatar_xxx.jpg` |
+| **产品 banner** | `data.productInfo.productExtend.MoreRecommendProductList[].ImageUrl` | 4-8 张 | `ctrip_images/1N_banner_xxx.jpg` (次要) |
+
+```python
+# 1 行下载 + 1 行优化
+import requests
+for url in urls: requests.get(url).content  # 写到 /opt/data/home/workspace/<proj>/ctrip_images/
+
+# PIL 缩到 800x600 / quality 82 → 总 13 张图约 1 MB
+from PIL import Image
+im = Image.open(src); im.thumbnail((800,600), Image.LANCZOS); im.save(dst, 'JPEG', quality=82)
+```
+
+### 3 张必建图集页 (P26 + P27 + P28)
+
+| 页号 | 内容 | SVG | base64 大小 |
+|---|---|---|---|
+| **P26 4 线图集** | A/B/C/D 4 张代表图 (景点/酒店各 1) | `26_4line_gallery.svg` | ~460 KB |
+| **P27 酒店精选** | 主酒店 3 张实拍 (外部/房间/公共) | `27_hotel_gallery.svg` | ~430 KB |
+| **P28 行程图集** | 9 个景点 3x3 网格 (D1-D6) | `28_itinerary_gallery.svg` | ~900 KB |
+
+SVG 嵌图姿势: `<image x="0" y="0" width="400" height="300" href="data:image/jpeg;base64,XXXXX" />` → `svg_to_pptx` 自动解压到 `ppt/media/image_*.jpg`。
+
+### 4 步必走 (10 min)
+
+```
+1. ctrip_spa_capture(product_id)  → 8 JSON (含 ProductInfo)
+2. python 抽 4 类 URL → ctrip_images/all_data.json
+3. requests 下载 + PIL 缩放 (1 MB) → ctrip_images/opt/
+4. 建 svg/26/27/28 三张 → svg_to_pptx → 28/28 0 失败, pptx 内嵌 13 张图
+```
+
+### 教训收口 (本次 v1→v3)
+
+- v1 漏 4 类图 + 漏 P26-P28 → 用户质疑"只给了 A 线" + "官方的图片也没插入"
+- v2 加 4 线对比表, 但**仍未抓图**
+- v3 抓 4 类图 + 建 3 张图集页 → **pptx 1.22 MB / 13 张图 / 28 页全绿**
+- 守则: **产品 PPT 必带 ≥ 3 张图集页 + 4 类图必抓**

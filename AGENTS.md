@@ -84,11 +84,13 @@ This project ships with **four** Agent skills under `skill/`:
 - `skill/ctrip-product-research/` — umbrella / router
 - `skill/ctrip-spa-capture/` — technical layer (Playwright + graphql)
 - `skill/ctrip-product-report/` — 11-段 report template
-- `skill/ctrip-product-decision-deck/` — **v4 决策手册 PPT**(2026-06-07 新增)
+- `skill/ctrip-product-decision-deck/` — **v5 决策手册 PPT**(2026-06-07 升级, p69762187 + p69852382 落地)
   - 4 出行 + 4 风格字段确认(8 Confirmations)
   - shoppingid + getShoppingDetail 抓 5 段真实酒店 + 航班
   - ctrip_dom_7days.py 抓图文行程 DOM(7 日 D1-D7 + 违约条款 + 6 早餐 1 午餐)
-  - 26 页 SVG(editorial 杂志风 + 海岛蓝绿 + 火山橙红 + 真图嵌)
+  - 28 页 SVG(editorial 杂志风 + 海岛蓝绿 + 火山橙红 + 真图嵌)
+  - **v3 增量(必走)**: 13 张官方图嵌入(10 POI + 3 酒店) + P26-P28 三张图集页
+  - **v5 升级**: 4 线 7/4-7/10 价格矩阵 + 4 沙巴 1 印尼 双案例 + lessons-failures-bank.md 守则
   - 升级脚本 `scripts/run_v4.sh` 端到端跑(4 出行参数预填)
 
 Hermes agents can `skill_view(name='ctrip-spa-capture')` to load them.

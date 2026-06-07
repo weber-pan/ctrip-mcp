@@ -1,5 +1,31 @@
 # 更新日志 (CHANGELOG)
 
+## [0.3.0] - 2026-06-07
+
+### 升级 — ctrip-product-decision-deck v5 (旅客决策手册 + 官方图)
+
+#### 4 沙巴 1 印尼 双案例落地
+- **p69852382 巴厘岛 7 日 5 晚** (v3 含图版, 1.22 MB / 28 页)
+  - A 高性价5钻 ¥5,836 起 / B 小众秘境 ¥7,409 / C 2晚阿雅娜 ¥10,348 / D 全国联运 ¥5,254
+  - 13 张官方图嵌入 (10 POI + 3 酒店实拍, JSON 4 类字段源)
+  - P26-P28 三张图集页 (4 线代表图 / 酒店精选 / 行程 9 景点 3x3 网格)
+- **p64158367 沙巴 6 日 5 晚** (4 线对比 28 页) — 7/4-7/10 价格矩阵完整
+
+#### SKILL.md v5 增量 (10.7 节 v3 必抓 SOP)
+- **4 类必抓图 JSON 路径**: `imageStyleInfo.poiInfo.ImagePoiList[]` / `hotelInfo.imageHotelList[].imageList[]` / `commentInfo.comments[].userInfo.avatarUrl` / `productExtend.MoreRecommendProductList[].ImageUrl`
+- **PIL 缩图规范**: 800x600 / q82 / optimize / RGBA → RGB
+- **3 张图集页规范**: P26 4 线代表图 + P27 酒店精选 + P28 行程 9 景点网格
+- **v3 pptx 验证**: ZIPFILE 检查 `ppt/media/image_*.jpg` 嵌入数
+- **附 6 个新 reference**: case-p69852382 / lessons-failures-bank / multi-line-4-bundle-compare / pitfalls-overview / quality-bar / v5-increment-update
+
+#### 教训固化 (3 轮迭代 v1→v2→v3)
+- v1 缺 4 线 → v2 补 → v3 缺图 → **3 张图集页 + 13 张官方图嵌入** → 永久 skill 化
+- 用户原话: "基本对比+官方的图片 也没插入到 ppt 里面啊 你都没写进 skill 里面吗"
+
+### 与 ppt-master 守则联动
+- **ppt-master SKILL.md** 也追加「产品类 PPT 必走 7 项检查」(2026-06-07 p69852382 教训) — 3 路硬链同步
+- 任何产品 PPT 必须含 4 线对比表 + ≥3 张图集页 + 4 类必抓图
+
 ## [0.2.0] - 2026-06-06
 
 ### 新增 — 0 跑体验
