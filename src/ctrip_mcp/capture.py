@@ -246,11 +246,11 @@ def parse_daily_min_prices(product_id: int, data_dir: str | None = None) -> dict
 
     # 4 条线路名 - 从 TourGroupInfo 或 groupCard 拿
     line_names = {}
-    tgi = pi.get("TourGroupInfo", {}).get("TourGroupProductInfo", [])
+    tgi = (pi.get("TourGroupInfo") or {}).get("TourGroupProductInfo") or []
     for t in tgi:
         line_names[t.get("ProductId")] = t.get("Description", "?")
     if not line_names:
-        for c in pi.get("groupCard", {}).get("cards", []):
+        for c in (pi.get("groupCard") or {}).get("cards") or []:
             line_names[c.get("productId")] = c.get("name", "?")
 
     by_date = {}

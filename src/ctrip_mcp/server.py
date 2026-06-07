@@ -169,8 +169,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
                 # 4 条线路 - 优先 VPC 的 TourGroupProductInfo
                 lines = []
-                if piv:
-                    for t in piv.get("TourGroupInfo", {}).get("TourGroupProductInfo", []):
+                tgi = (piv or {}).get("TourGroupInfo") or {}
+                for t in tgi.get("TourGroupProductInfo") or []:
                         lines.append({
                             "subProductId": t.get("ProductId"),
                             "name": t.get("Description", "?"),
