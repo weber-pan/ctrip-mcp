@@ -79,11 +79,17 @@ to get a CSV of the 207-day price calendar + 4 image sources + 11段补漏.
 
 ## Skill integration
 
-This project ships with three Agent skills under `skill/`:
+This project ships with **four** Agent skills under `skill/`:
 
 - `skill/ctrip-product-research/` — umbrella / router
 - `skill/ctrip-spa-capture/` — technical layer (Playwright + graphql)
 - `skill/ctrip-product-report/` — 11-段 report template
+- `skill/ctrip-product-decision-deck/` — **v4 决策手册 PPT**(2026-06-07 新增)
+  - 4 出行 + 4 风格字段确认(8 Confirmations)
+  - shoppingid + getShoppingDetail 抓 5 段真实酒店 + 航班
+  - ctrip_dom_7days.py 抓图文行程 DOM(7 日 D1-D7 + 违约条款 + 6 早餐 1 午餐)
+  - 26 页 SVG(editorial 杂志风 + 海岛蓝绿 + 火山橙红 + 真图嵌)
+  - 升级脚本 `scripts/run_v4.sh` 端到端跑(4 出行参数预填)
 
 Hermes agents can `skill_view(name='ctrip-spa-capture')` to load them.
 

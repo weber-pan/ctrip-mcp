@@ -1,7 +1,7 @@
 # ctrip-mcp (携程 MCP - 真抓版)
 
 > 配套姊妹仓库:[xiecheng-mcp](https://gitee.com/weber-pan/xiecheng-mcp)(wendao LLM 兜底版)
-> 配套 Agent skill: `skill/ctrip-product-research/` umbrella → `ctrip-spa-capture` + `ctrip-product-report`
+> 配套 Agent skill (4 个): `skill/ctrip-product-research/` umbrella → `ctrip-spa-capture` + `ctrip-product-report` + **`ctrip-product-decision-deck` (v4 决策手册 PPT, 2026-06-07 新)**
 
 把携程 m 端 h5 SPA 内部 graphql/soa 接口封装为 [Model Context Protocol](MCP) server。
 **核心差异**:不走携程"问道"LLM 兜底,直接 Playwright + Chromium + fetch hook 拦截 SPA 内部接口,拿到一手 JSON。
