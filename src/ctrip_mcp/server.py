@@ -269,11 +269,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"❌ error in {name}: {type(e).__name__}: {e}\n{__import__('traceback').format_exc()}")]
 
 
-def main():
+def main() -> None:
     """主入口 - uv run ctrip-mcp 调这里"""
     import sys
     print(f"ctrip-mcp {__version__}", file=sys.stderr)
-    asyncio.run(stdio_server(app))
+    async def _run() -> None:
+        async with stdio_server() as (read_stream, write_stream):
+            await app.run(read_stream, write_stream, app.create_initialization_options())
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
