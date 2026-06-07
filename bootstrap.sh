@@ -2,7 +2,7 @@
 # bootstrap.sh — 从 0 一键安装 + 验证 ctrip-mcp (含小红书集成)
 #
 # 用法 (任何环境, 包括 Docker 容器 / 全新 VPS / Mac / Linux):
-#   curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
+#   curl -fsSL https://github.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
 #   # 或本地:
 #   bash bootstrap.sh
 #
@@ -39,7 +39,7 @@ echo "$PY_VER" | awk -F. '$1>=3 && $2>=10 {exit 0} {exit 1}' \
   || die "需要 Python 3.10+, 当前 $PY_VER"
 
 # 2. git clone
-REPO_URL="https://gitee.com/weber-pan/ctrip-mcp.git"
+REPO_URL="https://github.com/weber-pan/ctrip-mcp.git"
 INSTALL_DIR="${CTRIP_INSTALL_DIR:-$HOME/.ctrip-mcp}"
 if [ -d "$INSTALL_DIR/.git" ]; then
   log "已存在: $INSTALL_DIR, 拉最新..."

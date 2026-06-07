@@ -63,7 +63,7 @@ LLM 兜底价格**。
 
 ```bash
 # 一行安装(克隆、venv、装 Chromium、跑 e2e)
-curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
+curl -fsSL https://github.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
 ```
 
 `bootstrap.sh` 流程:Python ≥ 3.10 探测 → `git clone` 到 `~/.ctrip-mcp` → venv →

@@ -78,7 +78,7 @@ That approach fails in three predictable ways:
 
 ```bash
 # One-liner install (clones, builds venv, installs Chromium, runs e2e)
-curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
+curl -fsSL https://github.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
 ```
 
 `bootstrap.sh` handles: Python ≥ 3.10 check → `git clone` into
