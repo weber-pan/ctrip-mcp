@@ -39,14 +39,20 @@ If you are an AI agent and your user gives you a Ctrip product URL like
 ctrip-mcp 内嵌 rednote-mcp, **有 cookie 才有 xhs_* tool**。
 
 ```yaml
-# mcphub Add Server 时配 env:
+# mcphub Add Server 时配 env (推荐):
+env:
+  REDNOTE_COOKIES: '[{"name":"a1","value":"xxx"},{"name":"web_session","value":"yyy"},...]'
+```
+
+或者用文件路径 (向后兼容):
+```yaml
 env:
   REDNOTE_COOKIES_FILE: "/app/.secrets/xhs_cookies.json"
 ```
 
-cookie 获取: 用户从 `web.xiaohongshu.com` DevTools → Application → Cookies → .xiaohongshu.com → 全部 copied as JSON → 写文件。
+cookie 获取: 浏览器登录 `web.xiaohongshu.com` → DevTools → Application → Cookies → .xiaohongshu.com → 全选复制 JSON。
 
-16 个 key: `a1 web_session id_token webId websectiga abRequestId xsecappid gid` 等。
+**更新流程**: mcphub 面板 → 改 `REDNOTE_COOKIES` env → 重启服务 → 新 cookie 自动生效。不需要容器挂载、不需要文件路径。
 
 没配 cookie → ctrip-mcp 只暴露 5 个 ctrip_* tool, xhs_* 不可见。
 

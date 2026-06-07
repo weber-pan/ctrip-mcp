@@ -135,8 +135,8 @@ def _xhs_tool_defs() -> list:
             name="xhs_search_notes",
             description=(
                 "小红书关键词搜索, 返回标题+URL 列表。\n"
-                "**前置**: 配好 REDNOTE_COOKIES_FILE 环境变量, 有 16 个有效 cookie。\n"
-                "**动态**: cookie 到期可更新文件, 下次调用自动重新注入。\n"
+                "**前置**: 配 REDNOTE_COOKIES env 或 REDNOTE_COOKIES_FILE。\n"
+                "**更新**: mcphub 面板改 REDNOTE_COOKIES env → 重启 → 新 cookie。\n"
                 "**场景**: 旅游攻略/真实体验/人均价/避坑 等站旅客角度的素材。"
             ),
             inputSchema={
@@ -366,17 +366,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     f"❌ rednote-mcp 未装: {_XHS_IMPORT_ERROR}\n"
                     f"   装: pip install -e /opt/data/skills/rednote-mcp"
                 ))]
-            # 动态检查 cookie 文件 (支持运行时更新, 不要求重启)
+            # 动态检查 cookie (REDNOTE_COOKIES env > 文件)
             cookies_file = os.environ.get("REDNOTE_COOKIES_FILE", "/opt/data/.secrets/xhs_cookies.json")
             if not _xhs._has_cookie_file(cookies_file):
                 return [TextContent(type="text", text=(
-                    f"⚠️ 未检测到有效 cookie 文件:\n"
-                    f"   {cookies_file}\n"
-                    f"   更新步骤:\n"
-                    f"   1. 浏览器登录 xiaohongshu.com\n"
-                    f"   2. DevTools → Application → Cookies → .xiaohongshu.com\n"
-                    f"   3. 全选复制 JSON → 写入 {cookies_file}\n"
-                    f"   4. 再调本工具, 自动重新注入"
+                    f"⚠️ 未检测到有效 cookie\n\n"
+                    f"方式 1 (mcphub 推荐): 在 env 配 REDNOTE_COOKIES=原始JSON\n"
+                    f"   mcphub → 改 env → 重启服务 → 自动生效\n\n"
+                    f"方式 2: REDNOTE_COOKIES_FILE={cookies_file}\n\n"
+                    f"获取 cookie: 浏览器登录 xiaohongshu.com\n"
+                    f"  → DevTools → Application → Cookies → .xiaohongshu.com\n"
+                    f"  → 全选复制 JSON"
                 ))]
             if name == "xhs_health":
                 return [TextContent(type="text", text=json.dumps(await _xhs.xhs_health(), ensure_ascii=False, indent=2))]
