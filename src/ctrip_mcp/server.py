@@ -48,12 +48,14 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={
                 "type": "object",
+                # 兼容 mcphub 包装工具时把 int/bool 都当 string 传:
+                # schema 接受 string|integer, server 端强制转 int
                 "properties": {
-                    "product_id": {"type": "integer", "description": "携程产品号, 如 64158367"},
-                    "depart_city_id": {"type": "integer", "default": 2, "description": "出发城市 ID, 2=上海"},
+                    "product_id": {"type": ["string", "integer"], "description": "携程产品号, 如 64158367"},
+                    "depart_city_id": {"type": ["string", "integer"], "default": 2, "description": "出发城市 ID, 2=上海"},
                     "data_dir": {"type": "string", "default": str(DATA_DIR), "description": "产物落盘目录"},
-                    "timeout": {"type": "integer", "default": 60, "description": "抓取超时秒"},
-                    "scroll": {"type": "boolean", "default": True, "description": "是否滚动触发懒加载接口"},
+                    "timeout": {"type": ["string", "integer"], "default": 60, "description": "抓取超时秒"},
+                    "scroll": {"type": ["string", "boolean"], "default": True, "description": "是否滚动触发懒加载接口"},
                 },
                 "required": ["product_id"],
             },
@@ -67,7 +69,7 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "product_id": {"type": "integer", "description": "携程产品号"},
+                    "product_id": {"type": ["string", "integer"], "description": "携程产品号"},
                     "data_dir": {"type": "string", "default": str(DATA_DIR)},
                 },
                 "required": ["product_id"],
@@ -82,8 +84,8 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "main_product_id": {"type": "integer", "description": "主产品号"},
-                    "sub_product_ids": {"type": "array", "items": {"type": "integer"}, "description": "4 个 sub-productId"},
+                    "main_product_id": {"type": ["string", "integer"], "description": "主产品号"},
+                    "sub_product_ids": {"type": "array", "items": {"type": ["string", "integer"]}, "description": "4 个 sub-productId"},
                 },
                 "required": ["main_product_id", "sub_product_ids"],
             },
@@ -116,14 +118,36 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    # 兼容 mcphub 包装工具时的 arg 类型不严格:
+    # 传 "64158367" / "2" / "true" / "false" / "60" 等字符串都能转成 int/bool
+    def _as_int(v, default=None):
+        if v is None:
+            return default
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return default
+    def _as_bool(v, default=None):
+        if v is None:
+            return default
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes", "y", "on")
+        return bool(v)
+    def _as_str(v, default=None):
+        if v is None:
+            return default
+        return str(v)
+
     try:
         if name == "ctrip_spa_capture":
             result = await spa_capture(
-                product_id=arguments["product_id"],
-                depart_city_id=arguments.get("depart_city_id", 2),
-                data_dir=arguments.get("data_dir"),
-                timeout=arguments.get("timeout", 60),
-                scroll=arguments.get("scroll", True),
+                product_id=_as_int(arguments.get("product_id")),
+                depart_city_id=_as_int(arguments.get("depart_city_id"), 2),
+                data_dir=_as_str(arguments.get("data_dir")),
+                timeout=_as_int(arguments.get("timeout"), 60),
+                scroll=_as_bool(arguments.get("scroll"), True),
             )
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
         elif name == "ctrip_get_product":
