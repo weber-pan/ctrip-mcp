@@ -68,15 +68,22 @@ pip install --quiet -e .
 CHROMIUM_HINT="$HOME/.cache/ms-playwright/chromium-1223/chrome-linux64/chrome"
 if [ -x "$CHROMIUM_HINT" ]; then
   log "chromium 已就位: $CHROMIUM_HINT"
-  # 测一下能不能跑 (--version, 1s 超时)
   if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
     log "chromium --version 正常 (依赖齐)"
   else
-    warn "chromium 存在但 --version 失败, 大概率缺系统库 (libnss3/libxkbcommon0 等)"
-    warn "  Debian/Ubuntu 容器跑 (修):"
-    warn "    bash $INSTALL_DIR/scripts/install_deps.sh"
-    warn "  Alpine 容器跑:"
-    warn "    apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alsa-lib gtk+3.0 font-noto-cjk"
+    warn "chromium 存在但 --version 失败 — 自动装系统库 (apt)..."
+    if command -v apt-get >/dev/null 2>&1; then
+      bash "$INSTALL_DIR/scripts/install_deps.sh"
+      if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
+        log "✓ 装完系统库后 chromium 正常了"
+      else
+        die "✗ 装完系统库 chromium 还是跑不起来, 见 $CHROMIUM_HINT.log"
+      fi
+    elif command -v apk >/dev/null 2>&1; then
+      warn "Alpine 容器, 手动跑: apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alsa-lib font-noto-cjk"
+    else
+      die "未找到 apt/apk, 手动装 chromium 系统库"
+    fi
   fi
 elif [ -x "$(echo $HOME/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell 2>/dev/null | tr '*' 'a' | xargs -I{} ls -d {} 2>/dev/null | head -1)" ]; then
   log "headless_shell 已就位"

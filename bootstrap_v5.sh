@@ -74,11 +74,19 @@ if [ -x "$CHROMIUM_HINT" ]; then
   if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
     log "chromium --version 正常 (依赖齐)"
   else
-    warn "chromium 存在但 --version 失败, 大概率缺系统库"
-    warn "  Debian/Ubuntu 容器跑 (修):"
-    warn "    bash $INSTALL_DIR/scripts/install_deps.sh"
-    warn "  Alpine:"
-    warn "    apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alasa-lib"
+    warn "chromium 存在但 --version 失败 — 自动装系统库 (apt)..."
+    if command -v apt-get >/dev/null 2>&1; then
+      bash "$INSTALL_DIR/scripts/install_deps.sh"
+      if timeout 3 "$CHROMIUM_HINT" --version >/dev/null 2>&1; then
+        log "✓ 装完系统库后 chromium 正常了"
+      else
+        die "✗ 装完系统库 chromium 还是跑不起来"
+      fi
+    elif command -v apk >/dev/null 2>&1; then
+      die "Alpine 容器, 手动跑: apk add --no-cache nss nspr atk cups-libs drm libxkbcommon libxcomposite libxdamage libxfixes libxrandr gbm libxss alasa-lib"
+    else
+      die "未找到 apt/apk, 手动装 chromium 系统库"
+    fi
   fi
 else
   log "下载 chromium (~150MB)..."
