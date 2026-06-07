@@ -366,12 +366,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     f"❌ rednote-mcp 未装: {_XHS_IMPORT_ERROR}\n"
                     f"   装: pip install -e /opt/data/skills/rednote-mcp"
                 ))]
-            if not _XHS_HAS_COOKIE:
+            # 动态检查 cookie 文件 (支持运行时更新, 不要求重启)
+            cookies_file = os.environ.get("REDNOTE_COOKIES_FILE", "/opt/data/.secrets/xhs_cookies.json")
+            if not _xhs._has_cookie_file(cookies_file):
                 return [TextContent(type="text", text=(
-                    f"⚠️ xhs_* tool 启动时未检测到 cookie 文件:\n"
-                    f"   {_REDNOTE_COOKIES_FILE}\n"
-                    f"   启动时加环境变量: REDNOTE_COOKIES_FILE=/path/to/xhs_cookies.json\n"
-                    f"   或 mcphub 服务配置 env 注入 cookie 路径"
+                    f"⚠️ 未检测到有效 cookie 文件:\n"
+                    f"   {cookies_file}\n"
+                    f"   更新步骤:\n"
+                    f"   1. 浏览器登录 xiaohongshu.com\n"
+                    f"   2. DevTools → Application → Cookies → .xiaohongshu.com\n"
+                    f"   3. 全选复制 JSON → 写入 {cookies_file}\n"
+                    f"   4. 再调本工具, 自动重新注入"
                 ))]
             if name == "xhs_health":
                 return [TextContent(type="text", text=json.dumps(await _xhs.xhs_health(), ensure_ascii=False, indent=2))]
