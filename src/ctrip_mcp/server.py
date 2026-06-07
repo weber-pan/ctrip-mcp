@@ -27,6 +27,14 @@ from mcp.types import Tool, TextContent
 from . import __version__
 from .capture import spa_capture, parse_daily_min_prices, find_chromium, _find_file, _parse_net_date
 
+# 小红书核心 (复用 rednote-mcp 的浏览器实例, 共享 cookie)
+try:
+    from rednote_mcp import xhs_core as _xhs
+    _XHS_AVAILABLE = True
+except ImportError as e:
+    _XHS_AVAILABLE = False
+    _XHS_IMPORT_ERROR = str(e)
+
 # 让 `python -m ctrip_mcp.server` / `uv run ctrip-mcp` 都能找到 main
 __all__ = ["main", "app"]
 
@@ -111,6 +119,48 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="ctrip_health",
             description="健康检查: chromium 在不在 / 产物目录可写 / Playwright 可导入。",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        # ==================== 小红书 集成 (复用 rednote-mcp) ====================
+        Tool(
+            name="xhs_search_notes",
+            description=(
+                "小红书关键词搜索, 返回标题+URL 列表。\n"
+                "**前置**: 需有 rednote-mcp 安装并配置 cookie 文件 (默认 /opt/data/.secrets/xhs_cookies.json)。\n"
+                "**场景**: 旅游攻略/真实体验/人均价/避坑 等站旅客角度的素材。"
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "string", "description": "搜索词, 如 '京都7日游 自由行'"},
+                    "limit": {"type": "integer", "default": 10, "maximum": 30},
+                },
+                "required": ["keywords"],
+            },
+        ),
+        Tool(
+            name="xhs_explore",
+            description="小红书首页推荐 feed。无关键词, 拿当下热门。",
+            inputSchema={
+                "type": "object",
+                "properties": {"limit": {"type": "integer", "default": 10}},
+            },
+        ),
+        Tool(
+            name="xhs_get_note_content",
+            description="拿小红书笔记正文 (前 5000 字)。需先 search 拿 URL。",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"},
+                    "max_chars": {"type": "integer", "default": 5000},
+                },
+                "required": ["url"],
+            },
+        ),
+        Tool(
+            name="xhs_health",
+            description="检查小红书模块: cookie 文件 / 浏览器 / 登录态。",
             inputSchema={"type": "object", "properties": {}},
         ),
     ]
@@ -286,7 +336,39 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 health["playwright_importable"] = True
             except Exception as e:
                 health["playwright_error"] = str(e)
+            # 小红书模块状态
+            if _XHS_AVAILABLE:
+                try:
+                    health["xhs"] = await _xhs.xhs_health()
+                except Exception as e:
+                    health["xhs_error"] = str(e)
+            else:
+                health["xhs_available"] = False
+                health["xhs_import_error"] = _XHS_IMPORT_ERROR
             return [TextContent(type="text", text=json.dumps(health, ensure_ascii=False, indent=2))]
+        elif name in ("xhs_search_notes", "xhs_explore", "xhs_get_note_content", "xhs_health"):
+            if not _XHS_AVAILABLE:
+                return [TextContent(type="text", text=(
+                    f"❌ rednote-mcp 未装: {_XHS_IMPORT_ERROR}\n"
+                    f"   装: pip install -e /opt/data/skills/rednote-mcp"
+                ))]
+            if name == "xhs_health":
+                return [TextContent(type="text", text=json.dumps(await _xhs.xhs_health(), ensure_ascii=False, indent=2))]
+            if name == "xhs_search_notes":
+                r = await _xhs.xhs_search_notes(
+                    keywords=_as_str(arguments.get("keywords")),
+                    limit=_as_int(arguments.get("limit"), 10),
+                )
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
+            if name == "xhs_explore":
+                r = await _xhs.xhs_explore(limit=_as_int(arguments.get("limit"), 10))
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
+            if name == "xhs_get_note_content":
+                r = await _xhs.xhs_get_note_content(
+                    url=_as_str(arguments.get("url")),
+                    max_chars=_as_int(arguments.get("max_chars"), 5000),
+                )
+                return [TextContent(type="text", text=json.dumps(r, ensure_ascii=False, indent=2))]
         else:
             return [TextContent(type="text", text=f"❌ unknown tool: {name}")]
     except Exception as e:

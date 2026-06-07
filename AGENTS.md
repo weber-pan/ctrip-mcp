@@ -29,6 +29,10 @@ If you are an AI agent and your user gives you a Ctrip product URL like
 | `ctrip_compare_subproducts` | Re-run capture for each sub-productId (for 4-line products). |
 | `ctrip_get_hotel_price` | Fetch real hotel prices for one of the in-route hotels. |
 | `ctrip_health` | Health check — chromium, output dir, last capture timestamp. |
+| `xhs_search_notes` | 小红书关键词搜索 (走 rednote-mcp 浏览器+cookie)。站旅客角度拿真实笔记。 |
+| `xhs_explore` | 小红书首页推荐 feed。 |
+| `xhs_get_note_content` | 拿小红书笔记正文 (前 5000 字)。 |
+| `xhs_health` | 小红书模块健康: cookie 文件 / 浏览器 / 登录态。 |
 
 ## Pitfalls (read these)
 
