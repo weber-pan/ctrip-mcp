@@ -1,144 +1,222 @@
-# ctrip-mcp
+# 🇨🇳 ctrip-mcp
 
-> 携程 m 端 h5 SPA → 5 个 MCP 工具, 真实 graphql JSON 落盘 (Playwright + Chromium)
-> 不走 wendao LLM 兜底. 已知姊妹: xiecheng-mcp (LLM 兜底, 失败时用).
+<pre>
+      __      _
+ ____/ /_____(_)__
+/ __/ __/ __/ / _ \/___/  ' \/ __/ _ \
+\__/\__/_/ /_/ .__/   /_/_/_/\__/ .__/
+            /_/                /_/
+</pre>
 
-## 0. 60 秒从 0 跑
+**Real Ctrip tour data through MCP — Playwright-captured GraphQL, no LLM guessing.**
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python ≥ 3.10](https://img.shields.io/badge/python-≥3.10-blue)](pyproject.toml)
+[![MCP 1.0+](https://img.shields.io/badge/MCP-1.0+-purple)](https://modelcontextprotocol.io)
+[![5 ctrip + 4 xhs tools](https://img.shields.io/badge/tools-9-orange)](#the-nine-mcp-tools)
+
+`ctrip-mcp` opens a real Chromium against Ctrip's mobile h5 SPA, captures
+the live GraphQL responses (`ProductInfo_2nd_V3_h5`,
+`VPC_SelectDateProductInfo_h5`, `batchPriceCalendar`, …), and parses them
+deterministically into 4 sub-product lines, a 122-day price calendar,
+8 hotels, real user comments and visa info. The server also bundles
+[xiaohongshu](https://www.xiaohongshu.com) tools (`xhs_search_notes`,
+`xhs_explore`, `xhs_get_note_content`, `xhs_health`) for traveller POV
+research — both surfaces exposed as **nine stdio MCP tools**. No login,
+no cookie scraping, no LLM hallucination for prices.
+
+> **Note:** Ctrip capture uses a transient anonymous `shoppingid` token
+> (24-48h TTL). It does **not** log in, does **not** request phone
+> numbers, SMS codes, or cookies, and the server-side input validator
+> **refuses** any such input. The `xhs_*` tools require a valid
+> `REDNOTE_COOKIES` env var to be set; without it they are hidden from
+> the tool list.
+
+## What you get
+
+Sample output of `ctrip_get_product` for `product_id=64158367`
+(Malaysia · Sabah · 7 days 5 nights private tour):
+
+```json
+{
+  "name": "马来西亚沙巴 7 日 5 晚私家团",
+  "min_price": { "amount": 5762, "original": 5807, "date": "2026-06-24" },
+  "lines": [
+    { "sub_id": 64158367, "sort": 1, "name": "3+2 组合, 双酒店随心任选", "price": 6857 },
+    { "sub_id": 38789419, "sort": 2, "name": "升级 2 晚丹绒香格里拉",     "price": 8365 },
+    { "sub_id": 73810124, "sort": 3, "name": "2 晚热销 + 3 晚海滨度假",   "price": 7355 },
+    { "sub_id": 73810123, "sort": 4, "name": "全程同酒店入住",            "price": 6905 }
+  ],
+  "hotels": ["莎利雅香格里拉", "希尔顿", "万豪", "凯悦", "凯悦尚萃",
+             "丹绒香格里拉", "喜来登", "艾美"],
+  "price_calendar": { "days": 122, "month_low": { "date": "2026-09-07", "amount": 4849 } },
+  "comments": { "score_avg": 4.8, "count": 1 }
+}
+```
+
+## Why ctrip-mcp?
+
+Most LLM agents try to "read the Ctrip page" to answer price questions.
+That approach fails in three predictable ways:
+
+- **Tool-precise capture** — Playwright + `page.expect_response()` hooks
+  the exact 11 XHR calls; nothing is scraped from visible text.
+- **Multi-step reasoning built in** — `ctrip_spa_capture` (write 7
+  JSONs to disk) → `ctrip_get_product` (parse) → `ctrip_compare_subproducts`
+  (run capture 4× in parallel branches). The order is enforced by the
+  server, not by the agent's prompt.
+- **Real-world messiness handled** — stringified ints from mcphub,
+  `Title` living in `VPC.BasicInfo` not `ProductInfo_2nd_V3_h5`, `¥0`
+  rows for closed dates, scroll-required SPA lazy-load. All encoded as
+  fallbacks in the parser, not as agent heuristics.
+- **Practical outcomes** — output is structured JSON you can pipe into
+  a report generator, a PPT decision deck (`ctrip-product-decision-deck`
+  skill), or a hotel-price comparison. Not a sentence to be re-parsed
+  by another LLM.
+
+## Quick start
 
 ```bash
+# One-liner install (clones, builds venv, installs Chromium, runs e2e)
 curl -fsSL https://gitee.com/weber-pan/ctrip-mcp/raw/master/bootstrap.sh | bash
 ```
 
-`bootstrap.sh` 自动: clone → venv → pip → chromium (系统库缺则自动 `apt install`) → e2e 抓沙巴 64158367 → 打印接入指引.
+`bootstrap.sh` handles: Python ≥ 3.10 check → `git clone` into
+`~/.ctrip-mcp` → venv → `pip install -e .` → Chromium + 68 system
+apt packages → e2e capture of Sabah `64158367` → prints mcphub /
+Claude Code / Hermes wiring snippets. Re-running is safe; an existing
+clone is `git pull`ed first.
 
-## 1. 5 个 MCP 工具 (AI 必读)
+**Requirements:** Python 3.10+, ~600 MB disk (Chromium + caches),
+apt access for system libs (the installer runs `apt-get install` on
+Debian/Ubuntu; macOS uses the system Chromium).
 
-调用协议: `JSON-RPC 2.0 over stdio`. mcphub 包装时所有 int/bool 可能被传成 string, **server 端已做容错** (`['string','integer']` schema).
+**Optional — xhs tools:** set `REDNOTE_COOKIES` (paste from browser
+DevTools) in the MCP server env to expose the 4 `xhs_*` tools. Without
+it, only the 5 `ctrip_*` tools are visible.
 
-| 工具 | 入参 | 出参 | 耗时 |
-|---|---|---|---|
-| `ctrip_spa_capture` | `product_id` (int, **必填**), `depart_city_id` (int, 默认 2=上海), `data_dir` (str, 默认 `/opt/data/ctrip-data`), `timeout` (int, 默认 60), `scroll` (bool, 默认 true) | 7 xhr JSON 落盘路径 + DOM txt + screenshot png + 11 xhr URL 列表 | ~17s |
-| `ctrip_get_product` | `product_id` (int, **必填**), `data_dir` (str) | `product_basic` + `lines[4]` + `hotels[8]` + `comments` + `price_calendar[122天]` + `fee_summary` + `visa_summary` + `more_recommend[8]` | <1s (本地解析) |
-| `ctrip_compare_subproducts` | `main_product_id` (int, **必填**), `sub_product_ids` (int[], **必填**, 4 个) | 4 sub-product 各跑一次 `ctrip_spa_capture` | ~70s (4×17s) |
-| `ctrip_get_hotel_price` | (查 hotels_mcp_ids 文档) | 真实房型+价 | ~5s |
-| `ctrip_health` | 无 | chromium 路径 / data_dir 可写 / playwright 可导入 | <1s |
+## The nine MCP tools
 
-### 调用顺序 (强约束)
+Transport: **JSON-RPC 2.0 over stdio.** When wrapped by mcphub, integer
+and boolean args may arrive as strings; the server tolerates both
+(schema declares `['string', 'integer']`).
 
-```
-ctrip_spa_capture  →  落盘 7 xhr JSON
-                    ↓
-ctrip_get_product   ←  读落盘的 ProductInfo_2nd_V3_h5.json
-                    ↓
-ctrip_compare_subproducts / ctrip_get_hotel_price
-```
+| Tool | Required | Optional | Output | Latency |
+|---|---|---|---|---|
+| `ctrip_spa_capture` | `product_id` (int) | `depart_city_id` (int, default `2`), `data_dir` (str), `timeout` (int, default `60`), `scroll` (bool, default `true`) | 7 GraphQL JSONs on disk + DOM txt + screenshot png + 11 XHR URL list | ~17 s |
+| `ctrip_get_product` | `product_id` (int) | `data_dir` (str) | `product_basic` + `lines[4]` + `hotels[8]` + `comments` + `price_calendar[122d]` + `fee_summary` + `visa_summary` + `more_recommend[8]` | <1 s (local parse) |
+| `ctrip_compare_subproducts` | `main_product_id` (int), `sub_product_ids` (int[4]) | — | Each sub-product's full `ctrip_get_product` payload | ~70 s (4 × 17 s) |
+| `ctrip_get_hotel_price` | `hotel_id` (int) | `check_in`, `check_out` | Real room types + nightly price via AI_Go_Hotel_MCP | ~5 s |
+| `ctrip_health` | — | — | Chromium path, `data_dir` writable, Playwright importable | <1 s |
+| `xhs_search_notes` | `keyword` (str) | `limit` (int) | Xiaohongshu search results | <1 s |
+| `xhs_explore` | — | `limit` (int) | Xiaohongshu explore feed | <1 s |
+| `xhs_get_note_content` | `note_id` (str) | — | Note text + media URLs | <1 s |
+| `xhs_health` | — | — | Xiaohongshu module health (cookie present? expired?) | <1 s |
 
-**不跑 capture 直接调 get_product 会返回** `❌ 未找到 ProductInfo_2nd_V3_h5 (pid=XXX)`.
+**Call order is strict** for Ctrip — calling `ctrip_get_product` before
+`ctrip_spa_capture` returns `❌ ProductInfo_2nd_V3_h5 not found`.
 
-## 2. 关键 graphql 接口 (5 个)
+## The five key GraphQL endpoints
 
-**base url**: `https://m.ctrip.com/restapi/soa2/18055/graphql?queryName=<MethodName>`
+Base URL: `https://m.ctrip.com/restapi/soa2/18055/graphql?queryName=<Method>`
 
-| queryName | 拿什么 |
+| `queryName` | Returns |
 |---|---|
-| `ProductInfo_2nd_V3_h5` | **4 条线路 groupCard + 8 家酒店 + 点评汇总 + 行程 segments** ← 必抓 |
-| `VPC_SelectDateProductInfo_h5` | 4 个 sub-productId + **122 天分价** + 签证 + 班期规则 |
-| `ProductInfo_VisaInfo_h5` | 签证详情 |
-| `batchPriceCalendar` | 价格日历 (优惠明细) |
-| `getCommentSummary` | 真实用户点评分 |
+| `ProductInfo_2nd_V3_h5` | **4 sub-product lines + 8 hotels + comment summary + segments** — required |
+| `VPC_SelectDateProductInfo_h5` | 4 sub-productIds + **122-day price matrix** + visa + calendar rules |
+| `ProductInfo_VisaInfo_h5` | Visa details |
+| `batchPriceCalendar` | Price calendar with promotion breakdown |
+| `getCommentSummary` | Real user review score |
 
-**Spa URL 模板** (必须带 shoppingid 触发 graphql):
+The SPA URL must include a `shoppingid` query param (24-48h anonymous
+inquiry token) or zero XHRs will fire:
 
 ```
 https://m.ctrip.com/webapp/vacations/tour/detail?productId=64158367&departCityId=2&shoppingid=677ec57391474056ab2291eee5c1ca45
 ```
 
-## 3. 城市 ID 字典 (国内出发)
+## Departure city dictionary
 
-`?city=2` 是携程内部**出发城市 ID**, 不是地区码:
+`?departCityId=2` is Ctrip's **internal departure-city ID**, not a
+region code. The full 68-city dictionary is dumped into
+`DepartureCityPriceList[]` on every capture.
 
-| ID | 城市 | ID | 城市 |
+| ID | City | ID | City |
 |---|---|---|---|
-| 1 | 北京 | 17 | 杭州 |
-| **2** | **上海** (默认) | 28 | 成都 |
-| 3 | 天津 | 30 | 深圳 |
-| 5 | 哈尔滨 | 32 | 广州 |
-| 12 | 南京 | 1244 | 重庆 |
+| 1 | Beijing | 17 | Hangzhou |
+| **2** | **Shanghai (default)** | 28 | Chengdu |
+| 3 | Tianjin | 30 | Shenzhen |
+| 5 | Harbin | 32 | Guangzhou |
+| 12 | Nanjing | 1244 | Chongqing |
 
-完整 68 城在抓取后的 `DepartureCityPriceList[]` 里.
+## Four companion agent skills
 
-## 4. 4 个 Agent skill (自动加载)
+`bootstrap.sh` symlinks all four into `~/.hermes/skills/`. Load any
+of them in-session with `skill_view(name='<name>')`.
 
-| Skill | 作用 |
+| Skill | Role |
 |---|---|
-| `ctrip-product-research` (umbrella) | 路由: user URL → 哪个子 skill |
-| `ctrip-spa-capture` | 技术层 (Playwright 真抓) |
-| `ctrip-product-report` | 工作流层 (11 段报告模板) |
-| **`ctrip-product-decision-deck`** ✨ | **v4 决策手册 PPT** (2026-06-07 新, 25-28 页旅客视角) |
+| `ctrip-product-research` | Umbrella router: user URL → which sub-skill |
+| `ctrip-spa-capture` | Tech layer (Playwright real capture) |
+| `ctrip-product-report` | Workflow layer (11-section report template) |
+| `ctrip-product-decision-deck` | v5 PPT decision manual (28-page traveller-view deck with 13 official images) |
 
-skill 调 `skill_view(name='ctrip-product-decision-deck')` 看完整 SKILL.md + run_v4.sh 用法.
+## Pitfalls (read before calling)
 
-## 5. Pitfall (AI 必读)
+1. **`shoppingid` is mandatory** — missing → SPA skips `getShoppingDetail` → 0 XHRs.
+2. **`scroll=True` is mandatory** — SPA lazy-loads sections after D3.
+3. **Container Chromium needs system libs** — `bash scripts/install_deps.sh` installs 68 apt packages (libnss3, libxkbcommon0, fonts-noto-cjk, …).
+4. **mcphub may stringify ints/bools** — schemas declare `['string', 'integer']`; the server coerces.
+5. **`Title` is missing in `ProductInfo_2nd_V3_h5`** — use `VPC.BasicInfo.Title`.
+6. **POI image field is `imgUrl`**, not `imageList`.
+7. **`feeInfoList.Description` does not exist** — real path is `TargetPopulationItemList[].Description`.
+8. **Filter `¥0` prices** — those are zero-inventory or closed-date rows.
+9. **`page.on('response')` can miss XHRs** — fall back to `page.expect_response()` pattern.
+10. **Never log the user in** — refuse cookies, phone numbers, SMS codes. The `shoppingid` is the only token needed.
+11. **`xhs_*` tools need `REDNOTE_COOKIES`** — without it, the 4 xhs tools are hidden; update by editing the MCP server env, no restart of mcphub needed.
 
-1. **必须有 `shoppingid` URL 参数** — 不带 → SPA 不触发 `getShoppingDetail` graphql → 0 xhr
-2. **必须 `scroll=True`** — SPA lazy load, D3 之后不滚拿不到后段
-3. **容器 chromium 缺系统库** — 装 `bash scripts/install_deps.sh` (apt 装 libnss3/libxkbcommon0 等 68 个包 + fonts-noto-cjk)
-4. **mcphub 把 int/bool 传成 string** — schema 已声明 `['string','integer']` 兼容, server 强制转
-5. **`Title` 在 2nd_V3 缺失** — 改查 `VPC.BasicInfo.Title`
-6. **POI 字段是 `imgUrl`** 不是 `imageList`
-7. **feeInfoList.Description 字段不存在** — 真实在 `TargetPopulationItemList[].Description`
-8. **¥0 价格过滤掉** — 库存 0 或关闭班期
-9. **`Agent loops`**: `page.on('response')` 抓不到时, 用 `page.expect_response()` 模式重抓
-10. **不要替用户登录** — 拒绝收 cookie/手机号/验证码; `shoppingid` 是匿名询价凭证, 24-48h 失效, 不需登录
+## Client wiring
 
-## 6. E2E 测试样例 (沙巴 64158367, 4 线)
+| Client | Config file | Entry |
+|---|---|---|
+| **Claude Code** | `~/.claude/mcp.json` | `{ "mcpServers": { "ctrip": { "command": "ctrip-mcp" } } }` |
+| **Hermes / mcphub** | `mcp_servers.yaml` | `- name: ctrip`<br>`  command: ctrip-mcp` |
+| **Cursor / Windsurf / Aider** | stdio transport | works out of the box |
 
-```
-=== 1) ctrip_spa_capture ===
-duration: 17.24s, xhrs: 11
-saved: getCommentSummary, getByRelationId, getPromotionTag, ProductInfo_2nd_V3_h5, VPC_SelectDateProductInfo_h5, batchPriceCalendar, ProductInfo_VisaInfo_h5, dom, screenshot
+## Command reference
 
-=== 2) ctrip_get_product ===
-name: 马来西亚沙巴 7 日 5 晚私家团
-min_price: ¥5762 (orig ¥5807) on 2026-06-24
-lines: 4
-  - subId=64158367 sort=1  3+2 组合, 双酒店随心任选
-  - subId=38789419 sort=2  高端升级--2 晚丹绒香格里拉
-  - subId=73810124 sort=3  2 晚热销+3 晚海滨度假酒店
-  - subId=73810123 sort=4  全程同酒店入住, 无需舟车劳顿
-hotels: 8 (莎利雅香格里拉/希尔顿/万豪/凯悦/凯悦尚萃/丹绒香格里拉/喜来登/艾美)
-comments: scoreAvg=4.8 count=1
-price_calendar dates: 122
-  全月最低: 2026-09-07 ¥4849 (line 3+2 组合)
+| Flag / env | Default | Notes |
+|---|---|---|
+| `CTRIP_DATA_DIR` | `/opt/data/ctrip-data` | Where 7 GraphQL JSONs and screenshots are written. Must be writable. |
+| `CTRIP_DEPART_CITY_ID` | `2` | Shanghai. Override per-call via `ctrip_spa_capture` arg. |
+| `CTRIP_TIMEOUT` | `60` | Seconds before a capture times out. |
+| `CTRIP_NO_SCROLL` | `false` | Set `1` to skip the lazy-load scroll (not recommended; you lose back-half lines). |
+| `REDNOTE_COOKIES` | _(unset)_ | Browser cookie string for xhs tools. Format: `a1=xxx; web_session=yyy; …` |
+| `REDNOTE_COOKIES_FILE` | _(unset)_ | Alt: path to a cookies file. `REDNOTE_COOKIES` takes precedence. |
 
-=== 3) 7/4 班期价 (4 条线) ===
-  subId=64158367  ¥6,857  3+2 组合
-  subId=38789419  ¥8,365  2 晚香格里拉
-  subId=73810124  ¥7,355  2 晚热销+3 晚海滨
-  subId=73810123  ¥6,905  全程同酒店 ← 最便宜
-```
-
-## 7. 仓库结构 (仅关键路径)
+## Repository layout
 
 ```
 ctrip-mcp/
-├── AGENTS.md                          # Claude Code / Hermes 自动读
-├── bootstrap.sh                       # 0 跑 (curl | bash)
-├── install-as-skill.sh
+├── AGENTS.md                          # auto-read by Claude Code / Hermes / Codex / Aider
+├── bootstrap.sh                       # one-liner installer
+├── install-as-skill.sh                # symlinks skills into ~/.hermes/skills/
 ├── pyproject.toml
-├── src/ctrip_mcp/
-│   ├── server.py                      # 5 工具 MCP server (stdio)
-│   └── capture.py                     # Playwright + fetch hook
+├── src/
+│   ├── ctrip_mcp/
+│   │   ├── server.py                  # 5 MCP tools (stdio)
+│   │   └── capture.py                 # Playwright + fetch hook
+│   └── rednote_mcp/                   # bundled xiaohongshu sister tools (4 tools)
 ├── scripts/
-│   ├── test_e2e.py                    # 端到端
-│   └── install_deps.sh                # apt 装 chromium 系统库
-└── skill/                             # 4 Agent skill
+│   ├── test_e2e.py
+│   └── install_deps.sh                # apt-get install chromium system libs
+└── skill/                             # 4 agent skills
     ├── ctrip-product-research/        # umbrella
     ├── ctrip-spa-capture/
     ├── ctrip-product-report/
-    └── ctrip-product-decision-deck/   # v4 PPT
+    └── ctrip-product-decision-deck/   # v5 PPT
 ```
 
-## 8. License
+## License
 
-MIT
+[MIT](LICENSE)
